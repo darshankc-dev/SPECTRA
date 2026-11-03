@@ -1,0 +1,497 @@
+{% extends "base.html" %}
+{% block title %}Administrator Control Room — SPECTRΛ{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-end gap-3 mb-4">
+  <div>
+    <div class="meta-inline mb-1">01. Platform Administration & Telemetry</div>
+    <h1 class="h3 fw-bold mb-0">Administrator Control Room</h1>
+  </div>
+  <div class="d-flex flex-wrap gap-2">
+    <a href="/model-evaluation/" class="btn-spectra-outline">
+      <i class="bi bi-clipboard2-data"></i> 60-Sample Model Evaluation
+    </a>
+    <button type="button" class="btn-spectra-primary" onclick="refreshAdminControlRoom()">
+      <i class="bi bi-arrow-clockwise"></i> Refresh Telemetry
+    </button>
+  </div>
+</div>
+
+<!-- 8-Cell Full-Width KPI Strip -->
+<section class="spectra-kpi-strip mb-4" aria-label="Platform Key Performance Indicators">
+  <div class="spectra-kpi-cell">
+    <div class="spectra-kpi-label">Total Inspections</div>
+    <div class="spectra-kpi-value" id="kpi-total-inspections">0</div>
+    <div class="spectra-kpi-sub"><span id="kpi-completed-inspections" class="status-text-completed">0</span> completed · <span id="kpi-failed-inspections" class="status-text-failed">0</span> failed</div>
+  </div>
+  <div class="spectra-kpi-cell">
+    <div class="spectra-kpi-label">Normal Predictions</div>
+    <div class="spectra-kpi-value status-text-normal" id="kpi-normal-predictions">0</div>
+    <div class="spectra-kpi-sub">Predicted Normal (&lt; 0.50)</div>
+  </div>
+  <div class="spectra-kpi-cell">
+    <div class="spectra-kpi-label">Defective Predictions</div>
+    <div class="spectra-kpi-value status-text-defective" id="kpi-defective-predictions">0</div>
+    <div class="spectra-kpi-sub">Predicted Defective (&ge; 0.50)</div>
+  </div>
+  <div class="spectra-kpi-cell">
+    <div class="spectra-kpi-label">Total Batches</div>
+    <div class="spectra-kpi-value" id="kpi-total-batches">0</div>
+    <div class="spectra-kpi-sub">Celery &amp; Redis Async Queue</div>
+  </div>
+  <div class="spectra-kpi-cell">
+    <div class="spectra-kpi-label">Pending Reviews</div>
+    <div class="spectra-kpi-value status-text-warning" id="kpi-pending-reviews">0</div>
+    <div class="spectra-kpi-sub"><span id="kpi-confirmed-reviews" class="status-text-normal">0</span> confirmed · <span id="kpi-corrected-reviews" class="status-text-warning">0</span> corrected</div>
+  </div>
+  <div class="spectra-kpi-cell">
+    <div class="spectra-kpi-label">Registered Engineers</div>
+    <div class="spectra-kpi-value" id="kpi-engineers">0</div>
+    <div class="spectra-kpi-sub">Role: ENGINEER</div>
+  </div>
+  <div class="spectra-kpi-cell">
+    <div class="spectra-kpi-label">Registered Supervisors</div>
+    <div class="spectra-kpi-value" id="kpi-supervisors">0</div>
+    <div class="spectra-kpi-sub">Role: SUPERVISOR</div>
+  </div>
+  <div class="spectra-kpi-cell">
+    <div class="spectra-kpi-label">Model Integrity</div>
+    <div class="spectra-kpi-value {% if model_integrity.verified %}status-text-normal{% else %}status-text-defective{% endif %}" style="font-size: 1.2rem;">
+      {{ model_integrity.status }}
+    </div>
+    <div class="spectra-kpi-sub font-mono">{{ model_integrity.model_version }}</div>
+  </div>
+</section>
+
+<!-- Row 2: Product Management + Analytics Charts -->
+<div class="row g-4 mb-4">
+  <!-- Product Management Panel -->
+  <div class="col-lg-7">
+    <div class="spectra-surface h-100">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+          <h2 class="h5 fw-bold mb-1">02. Supported Product Registry</h2>
+          <div class="meta-inline">Manage manufacturing products authorized for visual quality inspection</div>
+        </div>
+        <button type="button" class="btn-spectra-outline" onclick="toggleAddProductForm()">
+          <i class="bi bi-plus-lg"></i> Register Product
+        </button>
+      </div>
+
+      <!-- Collapsible Add Product Form -->
+      <form id="add-product-form" class="spectra-surface-secondary mb-3 d-none" onsubmit="handleCreateProduct(event)">
+        <div class="row g-2 align-items-end">
+          <div class="col-sm-4">
+            <label for="new-product-code" class="spectra-label">Product Code</label>
+            <input type="text" id="new-product-code" class="spectra-input font-mono" placeholder="e.g. P-PLATE02" required />
+          </div>
+          <div class="col-sm-4">
+            <label for="new-product-name" class="spectra-label">Product Name</label>
+            <input type="text" id="new-product-name" class="spectra-input" placeholder="Product Name" required />
+          </div>
+          <div class="col-sm-4">
+            <label for="new-product-desc" class="spectra-label">Description</label>
+            <input type="text" id="new-product-desc" class="spectra-input" placeholder="Inspection scope" />
+          </div>
+        </div>
+        <div class="d-flex justify-content-end gap-2 mt-3">
+          <button type="button" class="btn-spectra-outline" onclick="toggleAddProductForm()">Cancel</button>
+          <button type="submit" class="btn-spectra-primary">Save Product</button>
+        </div>
+      </form>
+
+      <div class="spectra-table-wrap">
+        <table class="spectra-table" aria-label="Supported Products Table">
+          <thead>
+            <tr>
+              <th>Product Code</th>
+              <th>Name</th>
+              <th>Description</th>
+              <th>Status</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="products-table-body">
+            <tr><td colspan="5" class="text-center text-secondary py-3">Loading products...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Analytics Charts -->
+  <div class="col-lg-5">
+    <div class="spectra-surface h-100 d-flex flex-column justify-content-between">
+      <div>
+        <h2 class="h5 fw-bold mb-1">03. Inspection &amp; Prediction Distribution</h2>
+        <div class="meta-inline mb-3">Live PostgreSQL counts across completed, failed, normal, and defective items</div>
+      </div>
+      <div style="height: 230px; position: relative;">
+        <canvas id="adminDistChart"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Row 3: Model Integrity Verification & Authorized User Provisioning -->
+<div class="row g-4 mb-4">
+  <div class="col-lg-6">
+    <div class="spectra-surface h-100">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+          <h2 class="h5 fw-bold mb-1">04. Frozen Model SHA-256 Verification</h2>
+          <div class="meta-inline">Model: <span class="font-mono text-light">{{ model_integrity.model_version }}</span> · Threshold: <span class="font-mono text-light">{{ model_integrity.decision_threshold }}</span></div>
+        </div>
+        <a href="/model-evaluation/" class="btn-spectra-outline">Full 60-Sample Report</a>
+      </div>
+
+      <div class="spectra-table-wrap mb-3">
+        <table class="spectra-table" aria-label="Model File Checksums">
+          <thead>
+            <tr>
+              <th>File</th>
+              <th>Computed SHA-256 Digest</th>
+              <th>Verification</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for fname, info in model_integrity.files.items %}
+            <tr>
+              <td class="font-mono">{{ fname }}</td>
+              <td class="font-mono" style="font-size: 0.74rem; word-break: break-all;">{{ info.actual_sha256 }}</td>
+              <td>
+                {% if info.verified %}
+                  <span class="status-text-match font-mono">VERIFIED</span>
+                {% else %}
+                  <span class="status-text-mismatch font-mono">MISMATCH</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <p class="meta-inline mb-0">{{ model_integrity.integrity_disclaimer }}</p>
+    </div>
+  </div>
+
+  <!-- User Management Panel -->
+  <div class="col-lg-6">
+    <div class="spectra-surface h-100">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+          <h2 class="h5 fw-bold mb-1">05. Authorized User &amp; Role Management</h2>
+          <div class="meta-inline">Provision Engineer, Supervisor, or Administrator accounts</div>
+        </div>
+        <button type="button" class="btn-spectra-outline" onclick="toggleAddUserForm()">
+          <i class="bi bi-person-plus"></i> Provision User
+        </button>
+      </div>
+
+      <form id="add-user-form" class="spectra-surface-secondary mb-3 d-none" onsubmit="handleProvisionUser(event)">
+        <div class="row g-2">
+          <div class="col-sm-6">
+            <label for="prov-username" class="spectra-label">Username</label>
+            <input type="text" id="prov-username" class="spectra-input" placeholder="Username" required />
+          </div>
+          <div class="col-sm-6">
+            <label for="prov-fullname" class="spectra-label">Full Name</label>
+            <input type="text" id="prov-fullname" class="spectra-input" placeholder="Full Name" />
+          </div>
+          <div class="col-sm-4">
+            <label for="prov-email" class="spectra-label">Email</label>
+            <input type="email" id="prov-email" class="spectra-input" placeholder="user@spectra.io" />
+          </div>
+          <div class="col-sm-4">
+            <label for="prov-role" class="spectra-label">Assigned Role</label>
+            <select id="prov-role" class="spectra-select">
+              <option value="SUPERVISOR">SUPERVISOR</option>
+              <option value="ENGINEER">ENGINEER</option>
+              <option value="ADMINISTRATOR">ADMINISTRATOR</option>
+            </select>
+          </div>
+          <div class="col-sm-4">
+            <label for="prov-password" class="spectra-label">Password</label>
+            <input type="password" id="prov-password" class="spectra-input" placeholder="Min. 8 chars" required />
+          </div>
+        </div>
+        <div class="d-flex justify-content-end gap-2 mt-3">
+          <button type="button" class="btn-spectra-outline" onclick="toggleAddUserForm()">Cancel</button>
+          <button type="submit" class="btn-spectra-primary">Create Account</button>
+        </div>
+      </form>
+
+      <div class="spectra-table-wrap">
+        <table class="spectra-table" aria-label="Registered Users Table">
+          <thead>
+            <tr>
+              <th>Username</th>
+              <th>Full Name</th>
+              <th>Role</th>
+              <th>Email</th>
+            </tr>
+          </thead>
+          <tbody id="users-table-body">
+            <tr><td colspan="4" class="text-center text-secondary py-3">Loading users...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Row 4: Recent Inspections & Platform Audit Stream -->
+<div class="spectra-surface">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+      <h2 class="h5 fw-bold mb-1">06. Platform Inspection &amp; Batch Activity</h2>
+      <div class="meta-inline">Complete inspection ledger across all operators with Evidence Passport links</div>
+    </div>
+  </div>
+  <div class="spectra-table-wrap">
+    <table class="spectra-table" aria-label="Platform Inspections Ledger">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Product</th>
+          <th>Filename</th>
+          <th>Submitted By</th>
+          <th>Status</th>
+          <th>AI Prediction</th>
+          <th>Confidence</th>
+          <th>Supervisor Review</th>
+          <th>Timestamp</th>
+          <th>Evidence</th>
+        </tr>
+      </thead>
+      <tbody id="admin-inspections-tbody">
+        <tr><td colspan="10" class="text-center text-secondary py-4">Loading platform inspections...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  let adminChartInstance = null;
+
+  function toggleAddProductForm() {
+    document.getElementById('add-product-form').classList.toggle('d-none');
+  }
+
+  function toggleAddUserForm() {
+    document.getElementById('add-user-form').classList.toggle('d-none');
+  }
+
+  async function loadAdminAnalytics() {
+    const { ok, data } = await Spectra.apiFetch('/api/v1/analytics/admin/');
+    if (!ok || !data.kpis) return;
+    const k = data.kpis;
+    document.getElementById('kpi-total-inspections').textContent = k.total_inspections;
+    document.getElementById('kpi-completed-inspections').textContent = k.completed_inspections;
+    document.getElementById('kpi-failed-inspections').textContent = k.failed_inspections;
+    document.getElementById('kpi-normal-predictions').textContent = k.normal_predictions;
+    document.getElementById('kpi-defective-predictions').textContent = k.defective_predictions;
+    document.getElementById('kpi-total-batches').textContent = k.total_batches;
+    document.getElementById('kpi-pending-reviews').textContent = k.pending_supervisor_reviews;
+    document.getElementById('kpi-confirmed-reviews').textContent = k.confirmed_reviews;
+    document.getElementById('kpi-corrected-reviews').textContent = k.corrected_reviews;
+    document.getElementById('kpi-engineers').textContent = k.registered_engineers;
+    document.getElementById('kpi-supervisors').textContent = k.registered_supervisors;
+
+    const ctx = document.getElementById('adminDistChart');
+    if (ctx && window.Chart) {
+      const chartData = [
+        k.normal_predictions,
+        k.defective_predictions,
+        k.failed_inspections,
+        k.pending_supervisor_reviews,
+        k.confirmed_reviews,
+        k.corrected_reviews,
+      ];
+      if (adminChartInstance) {
+        adminChartInstance.data.datasets[0].data = chartData;
+        adminChartInstance.update();
+      } else {
+        adminChartInstance = new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels: ['AI Normal', 'AI Defective', 'Invalid/Failed', 'Pending Review', 'Confirmed', 'Corrected'],
+            datasets: [{
+              label: 'Inspection Count',
+              data: chartData,
+              backgroundColor: ['#22C55E', '#EF4444', '#F59E0B', '#22DDF2', '#10B981', '#F97316'],
+              borderRadius: 6,
+            }],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+              x: { ticks: { color: '#94A3B8', font: { size: 11 } }, grid: { display: false } },
+              y: { beginAtZero: true, ticks: { color: '#94A3B8', precision: 0 }, grid: { color: 'rgba(51,65,85,0.4)' } },
+            },
+          },
+        });
+      }
+    }
+  }
+
+  async function loadProducts() {
+    const { ok, data } = await Spectra.apiFetch('/api/v1/products/');
+    if (!ok) return;
+    const tbody = document.getElementById('products-table-body');
+    const products = data.products || [];
+    if (!products.length) {
+      tbody.innerHTML = '<tr><td colspan="5" class="text-center text-secondary py-3">No products registered.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = products.map(p => `
+      <tr>
+        <td class="font-mono fw-semibold">${p.product_id}</td>
+        <td>${p.name}</td>
+        <td class="text-secondary">${p.description || '—'}</td>
+        <td>
+          <span class="font-mono ${p.active ? 'status-text-normal' : 'status-text-muted'}">
+            ${p.active ? 'ACTIVE' : 'INACTIVE'}
+          </span>
+        </td>
+        <td>
+          <button type="button" class="btn-spectra-outline py-1 px-2" style="font-size: 0.78rem;" onclick="toggleProductActive(${p.id}, ${!p.active})">
+            ${p.active ? 'Deactivate' : 'Activate'}
+          </button>
+        </td>
+      </tr>
+    `).join('');
+  }
+
+  async function toggleProductActive(productId, makeActive) {
+    const { ok, data } = await Spectra.apiFetch(`/api/v1/products/${productId}/`, {
+      method: 'PATCH',
+      body: { active: makeActive },
+    });
+    if (ok) {
+      Spectra.toast(`Product ${data.product_id} updated.`, 'success');
+      loadProducts();
+    } else {
+      Spectra.toast(data.error || 'Failed to update product.', 'error');
+    }
+  }
+
+  async function handleCreateProduct(e) {
+    e.preventDefault();
+    const product_id = document.getElementById('new-product-code').value.trim();
+    const name = document.getElementById('new-product-name').value.trim();
+    const description = document.getElementById('new-product-desc').value.trim();
+
+    const { ok, data } = await Spectra.apiFetch('/api/v1/products/', {
+      method: 'POST',
+      body: { product_id, name, description, active: true },
+    });
+
+    if (ok) {
+      Spectra.toast(`Product ${data.product_id} registered.`, 'success');
+      document.getElementById('add-product-form').reset();
+      toggleAddProductForm();
+      loadProducts();
+    } else {
+      const detailMsg = data.details && data.details.product_id ? data.details.product_id[0] : (data.error || 'Duplicate or invalid product.');
+      Spectra.toast(detailMsg, 'error');
+    }
+  }
+
+  async function loadUsers() {
+    const { ok, data } = await Spectra.apiFetch('/api/v1/users/');
+    if (!ok) return;
+    const tbody = document.getElementById('users-table-body');
+    const users = data.users || [];
+    tbody.innerHTML = users.map(u => `
+      <tr>
+        <td class="font-mono fw-semibold">${u.username}</td>
+        <td>${u.full_name}</td>
+        <td class="font-mono" style="color: #22DDF2;">${u.role}</td>
+        <td class="text-secondary">${u.email || '—'}</td>
+      </tr>
+    `).join('');
+  }
+
+  async function handleProvisionUser(e) {
+    e.preventDefault();
+    const username = document.getElementById('prov-username').value.trim();
+    const full_name = document.getElementById('prov-fullname').value.trim();
+    const email = document.getElementById('prov-email').value.trim();
+    const role = document.getElementById('prov-role').value;
+    const password = document.getElementById('prov-password').value;
+
+    const { ok, data } = await Spectra.apiFetch('/api/v1/users/', {
+      method: 'POST',
+      body: { username, full_name, email, role, password },
+    });
+
+    if (ok) {
+      Spectra.toast(data.message || 'User provisioned.', 'success');
+      document.getElementById('add-user-form').reset();
+      toggleAddUserForm();
+      loadUsers();
+      loadAdminAnalytics();
+    } else {
+      Spectra.toast(data.error || 'Failed to provision user.', 'error');
+    }
+  }
+
+  async function loadPlatformInspections() {
+    const { ok, data } = await Spectra.apiFetch('/api/v1/inspections/?limit=40');
+    if (!ok) return;
+    const tbody = document.getElementById('admin-inspections-tbody');
+    const list = data.inspections || [];
+    if (!list.length) {
+      tbody.innerHTML = '<tr><td colspan="10" class="text-center text-secondary py-4">No inspections recorded yet.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = list.map(item => {
+      const pred = item.prediction;
+      const rev = item.supervisor_review;
+      const statusClass = item.status === 'COMPLETED' ? 'status-text-completed' : (item.status === 'FAILED' ? 'status-text-failed' : 'status-text-warning');
+      const predHtml = pred
+        ? `<span class="${pred.predicted_class === 'Defective' ? 'status-text-defective' : 'status-text-normal'}">${pred.predicted_class}</span>`
+        : `<span class="text-secondary">—</span>`;
+      const confHtml = pred
+        ? `<span class="font-mono">${pred.confidence_percent.toFixed(1)}%</span>`
+        : `<span class="text-secondary" title="${item.failure_reason || ''}">${item.failure_reason ? 'Invalid Upload' : '—'}</span>`;
+      const revHtml = rev
+        ? `<span class="${rev.review_status === 'CONFIRMED' ? 'status-text-normal' : 'status-text-warning'}">${rev.review_status} (${rev.reviewed_class})</span>`
+        : `<span class="text-secondary">UNREVIEWED</span>`;
+
+      return `
+        <tr>
+          <td class="font-mono">#${item.id}</td>
+          <td class="font-mono">${item.product_code}</td>
+          <td>${item.original_filename}</td>
+          <td class="font-mono">${item.submitted_by_username}</td>
+          <td class="font-mono ${statusClass}">${item.status}</td>
+          <td>${predHtml}</td>
+          <td>${confHtml}</td>
+          <td>${revHtml}</td>
+          <td class="font-mono text-secondary" style="font-size: 0.78rem;">${Spectra.formatTimestamp(item.created_at)}</td>
+          <td>
+            <a href="/inspections/${item.id}/passport/" class="btn-spectra-outline py-1 px-2" style="font-size: 0.76rem;">
+              Passport
+            </a>
+          </td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  function refreshAdminControlRoom() {
+    loadAdminAnalytics();
+    loadProducts();
+    loadUsers();
+    loadPlatformInspections();
+  }
+
+  document.addEventListener('DOMContentLoaded', refreshAdminControlRoom);
+</script>
+{% endblock %}

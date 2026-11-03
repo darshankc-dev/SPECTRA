@@ -1,0 +1,1357 @@
+# MASTER BUILD PROMPT — SPECTRΛ
+## AI Visual Quality Assurance & Evidence Platform
+### Complete Round 2 Hackathon Implementation
+
+Act as a Senior Python Full-Stack Architect, Django Developer, Computer Vision Engineer, PostgreSQL Database Architect, UI/UX Designer, Security Engineer and QA Engineer.
+
+Your task is to BUILD a complete, functional, hackathon-ready web application named **SPECTRΛ**.
+
+This is not a UI prototype, static mockup, demonstration-only application or frontend-only project.
+
+Build the actual full-stack application with working authentication, database persistence, AI inference, image validation, background processing, APIs, role-based dashboards, supervisor reviews, audit history, analytics and automated tests.
+
+You must inspect the uploaded Round 2 Student Pack ZIP and use its actual model, inference helper, metadata, sample images, validation images, product details and official challenge documentation.
+
+Do not invent missing model functionality or replace the supplied classifier with a different model.
+
+---
+
+# 1. PROJECT IDENTITY
+
+Official project name: SPECTRΛ
+
+Full name: AI Visual Quality Assurance & Evidence Platform
+
+Technical identifiers:
+- Django project package: spectra_project
+- Database: spectra_db
+- Python package identifiers: lowercase ASCII
+- Display branding: SPECTRΛ
+
+Project objective:
+
+Develop an intelligent visual quality inspection platform for manufacturing environments.
+
+The platform must accept images of metal plates, run the supplied frozen computer vision classifier, identify Normal or Defective products, store inspection evidence, process batches asynchronously and allow supervisors to verify or correct AI predictions.
+
+The application must preserve the original AI prediction independently from human review.
+
+The product must be usable as a responsive web application on desktop and mobile browsers.
+
+---
+
+# 2. OFFICIAL CHALLENGE REQUIREMENTS — HIGHEST PRIORITY
+
+The uploaded official challenge brief is the authoritative specification.
+
+The system must satisfy these workflows:
+
+1. Administrator manages the supported product.
+2. Engineer selects the product and uploads a JPG or PNG image.
+3. The application displays the image, predicted class and confidence score.
+4. Engineer can submit a batch of images and track each item's processing status.
+5. Supervisor can inspect all saved inspection records.
+6. Supervisor can confirm or correct completed predictions.
+7. Original AI predictions must remain unchanged after supervisor review.
+8. Engineers must not be able to review results, including through direct API requests.
+9. Invalid uploads must be stored as failed attempts without being sent to the model.
+10. A failed image must not interrupt processing of valid images in the same batch.
+
+Product:
+- Product code: P-PLATE01
+- Product name: Demonstration Metal Plate
+- Classes: Normal and Defective
+
+The supported product already exists in the user's PostgreSQL database in the current implementation. When building a new environment, detect existing records before seeding. Never create duplicates.
+
+Official input restrictions:
+- JPEG and PNG only.
+- Actual decoded image content must be validated.
+- Maximum file size: 5 MiB per image.
+- Minimum width: 64 pixels.
+- Minimum height: 64 pixels.
+- Maximum width: 4096 pixels.
+- Maximum height: 4096 pixels.
+- Batch size: 1–10 images.
+- Empty batches must be rejected.
+- Oversized batches must be rejected.
+
+Do not introduce:
+- Model retraining.
+- Bounding-box detection.
+- Live camera inspection.
+- Paid inference APIs.
+- Filename-based prediction.
+- CSV-based prediction lookup.
+- Fake inspection results.
+- Fake model confidence values.
+
+---
+
+# 3. MANDATORY TECHNOLOGY STACK
+
+Use the following exact architecture.
+
+Backend:
+- Python 3
+- Django
+- Django REST Framework
+- Django authentication
+- Django Groups and permissions
+
+Frontend:
+- HTML5
+- CSS3
+- Vanilla JavaScript
+- Bootstrap 5
+- Bootstrap Icons or Lucide icons
+- Chart.js for analytics where useful
+
+Database:
+- PostgreSQL
+- Psycopg 3
+- Database name: spectra_db
+- Local PostgreSQL installation on the user's Windows machine.
+
+Background processing:
+- Celery
+- Redis
+
+Image processing:
+- Pillow
+- NumPy
+- Supplied inference.py
+- Supplied classifier.npz
+
+Architecture:
+- Modular monolith.
+- Django templates and static assets.
+- Service-oriented backend.
+- REST APIs for frontend operations.
+
+STRICT TECHNOLOGY RESTRICTIONS:
+
+Do not use:
+- SQLite.
+- Firebase or Firestore.
+- Supabase.
+- MongoDB.
+- React.
+- Next.js.
+- Vue.
+- Angular.
+- FastAPI.
+- Flask.
+- Node.js as the backend.
+- External paid inference services.
+- An alternative computer vision model.
+
+PostgreSQL must remain the application's only database.
+
+Do not replace the approved architecture with a default Google AI Studio technology stack.
+
+If Google AI Studio cannot execute the Django environment directly, generate the complete source project and exact local execution instructions. Do not pretend the application has been executed or tested when it has not.
+
+---
+
+# 4. INPUT ZIP INSPECTION
+
+Before implementation, inspect the uploaded ZIP.
+
+Expected contents include:
+
+- START_HERE.txt
+- Round2_Student_Challenge_Brief.pdf
+- Round2_Model_and_Data_Guide.pdf
+- Model/classifier.npz
+- Model/inference.py
+- Model/model_metadata.json
+- Model/requirements.txt
+- Samples/
+- Samples/labels.csv
+- Validation/
+- product_details.csv
+- SHA256SUMS.txt
+
+Inspect the actual files and determine their exact structure.
+
+Important instructions:
+
+1. Preserve the original supplied model files.
+2. Do not rewrite the inference algorithm.
+3. Do not change the classifier weights.
+4. Do not change preprocessing.
+5. Do not change the 0.5 decision threshold.
+6. Do not use sample labels to generate predictions.
+7. Do not use image filenames to decide whether an image is defective.
+8. Do not replace the classifier with a Gemini vision API or another model.
+9. Do not fabricate model performance.
+10. Preserve the original ZIP contents separately from application-generated files.
+
+Use the supplied inference helper as the only inference implementation.
+
+Verify the SHA-256 hashes of:
+- inference.py
+- classifier.npz
+- model_metadata.json
+
+Compare against the supplied SHA256SUMS.txt and the approved expected hashes.
+
+Expected approved hashes:
+
+inference.py:
+322647cb2e9b5466fe675af56564114532a3c50366ea4fad2961d69a88089ffc
+
+classifier.npz:
+d05a524ac10d6cb864e82da5adb69c0762308ddc05f833fd96eac336c4984ed2
+
+model_metadata.json:
+945f45a455106bede24345e802a64eafd9a6d6a928829f2b1de7f151c49dd017
+
+Verify these hashes before importing or executing the supplied inference helper.
+
+A matching hash verifies file integrity against the expected value, not the authenticity of the model.
+
+---
+
+# 5. APPLICATION ARCHITECTURE
+
+Use a modular Django application.
+
+Recommended structure:
+
+spectra/
+│
+├── manage.py
+├── requirements.txt
+├── .env.example
+├── .gitignore
+├── README.md
+│
+├── spectra_project/
+│   ├── settings.py
+│   ├── urls.py
+│   ├── wsgi.py
+│   ├── asgi.py
+│   └── celery.py
+│
+├── apps/
+│   ├── accounts/
+│   ├── products/
+│   ├── inspections/
+│   ├── reviews/
+│   ├── batch_processing/
+│   ├── audit/
+│   └── model_evaluation/
+│
+├── services/
+│   ├── image_validation.py
+│   ├── inference_adapter.py
+│   ├── inspection_lifecycle.py
+│   ├── task_dispatch.py
+│   ├── evidence_verification.py
+│   └── model_integrity.py
+│
+├── templates/
+│   ├── base.html
+│   ├── auth/
+│   ├── admin/
+│   ├── engineer/
+│   ├── supervisor/
+│   └── components/
+│
+├── static/
+│   ├── css/
+│   ├── js/
+│   ├── images/
+│   └── icons/
+│
+├── media/
+├── Model/
+├── Samples/
+├── Validation/
+└── tests/
+
+You may adjust folder placement when necessary, but preserve the modular architecture and separation of responsibilities.
+
+Do not duplicate existing modules or create unnecessary applications.
+
+---
+
+# 6. USER AUTHENTICATION AND ROLE MANAGEMENT
+
+Implement complete Django authentication.
+
+Three roles:
+
+1. ADMINISTRATOR
+2. ENGINEER
+3. SUPERVISOR
+
+Use Django Groups and permissions.
+
+Do not introduce an unnecessary custom Role table.
+
+## Authentication interface
+
+Create a premium authentication screen with two clearly visible options:
+
+- SIGN IN
+- REGISTER
+
+Use tabs or segmented controls.
+
+Sign In:
+- Username.
+- Password.
+- Password visibility toggle.
+- Authenticate button.
+- Validation messages.
+- Secure session handling.
+
+Register:
+- Full name.
+- Username.
+- Email.
+- Password.
+- Confirm password.
+- Create account button.
+
+Public registration must create ENGINEER accounts only.
+
+Never allow public users to assign themselves ADMINISTRATOR or SUPERVISOR privileges.
+
+Administrator and Supervisor accounts must be provisioned through an authorized administrator process or Django management command.
+
+The existing superuser must continue to work.
+
+Security requirements:
+- Django password hashing.
+- CSRF protection.
+- Session security.
+- Login validation.
+- Logout using POST.
+- Role checks on the backend.
+- No privilege escalation through manipulated API requests.
+- No hardcoded production credentials.
+
+After login, redirect users to their correct dashboards.
+
+---
+
+# 7. ROLE-SPECIFIC DASHBOARDS
+
+Create three distinct dashboards.
+
+Each dashboard must have a unique purpose, navigation, KPIs and permissions.
+
+Do not simply show the same dashboard with different titles.
+
+## A. ADMINISTRATOR — CONTROL ROOM
+
+Purpose: Monitor and administer the inspection platform.
+
+Features:
+
+- Total inspections.
+- Completed inspections.
+- Failed inspections.
+- Total batches.
+- Normal predictions.
+- Defective predictions.
+- Pending supervisor reviews.
+- Registered engineers.
+- Registered supervisors.
+- Product management.
+- System health.
+- Model status.
+- Recent activity.
+- Inspection trends.
+- Prediction distribution.
+- Batch processing overview.
+- User management.
+
+Product management:
+- View supported products.
+- Add or edit products through authorized actions.
+- Activate/deactivate products.
+- Display P-PLATE01.
+- Prevent accidental duplicate product creation.
+
+Administrator can view all platform activity.
+
+## B. ENGINEER — INSPECTION CONSOLE
+
+Purpose: Submit inspections and monitor personal work.
+
+Features:
+
+- Personal inspection statistics.
+- Single image upload.
+- Multiple image batch upload.
+- Product selector.
+- Image preview.
+- Drag-and-drop upload area.
+- File validation feedback.
+- Prediction result cards.
+- Confidence score.
+- Defect probability.
+- Inspection status.
+- Batch progress.
+- Personal inspection history.
+- Search and filters.
+- Inspection detail view.
+- Evidence Passport.
+- Processing timeline.
+
+Engineers must only access their own inspection records.
+
+Engineers must never access supervisor review operations.
+
+## C. SUPERVISOR — ASSURANCE DESK
+
+Purpose: Verify AI predictions and maintain inspection accountability.
+
+Features:
+
+- Total inspections.
+- Pending reviews.
+- Confirmed predictions.
+- Corrected predictions.
+- Human-AI disagreement count.
+- Review queue.
+- Inspection history.
+- Search and filters.
+- Confidence information.
+- Defect probability.
+- Original model output.
+- Image evidence.
+- Review comments.
+- Review timeline.
+- Evidence Passport.
+
+Supervisor actions:
+- Confirm original AI prediction.
+- Correct original AI prediction.
+- Add optional comments.
+- Save review.
+- View previous review revisions.
+- View complete inspection history.
+
+Supervisors must not modify original PredictionResult records.
+
+---
+
+# 8. AI VISUAL INSPECTION ENGINE
+
+Integrate the supplied classifier.
+
+The inference adapter must:
+
+1. Verify model file integrity.
+2. Load the supplied classifier.
+3. Call the supplied preprocessing and inference helper.
+4. Accept a validated image.
+5. Return the actual model output.
+6. Persist the result.
+
+Expected model:
+BIT-PLATE-CV-1.0
+
+Product:
+P-PLATE01
+
+Classes:
+- Normal
+- Defective
+
+Threshold:
+0.5
+
+Output fields:
+- predicted_class
+- confidence
+- defect_probability
+- model_version
+
+Confidence represents the probability associated with the predicted class as provided by the supplied helper.
+
+Do not call uncalibrated model confidence a guarantee of correctness.
+
+The application must clearly show:
+
+- Uploaded image.
+- Product.
+- Predicted class.
+- Confidence percentage.
+- Defect probability.
+- Model version.
+- Inspection ID.
+- Inspection timestamp.
+
+Use actual model output only.
+
+Do not create mock predictions for the real application.
+
+---
+
+# 9. IMAGE VALIDATION ENGINE
+
+Create a dedicated image validation service.
+
+Validation must happen before inference.
+
+Required validation sequence:
+
+1. Receive original file bytes.
+2. Check file size.
+3. Open image with Pillow.
+4. Verify actual file format.
+5. Close and reopen the image.
+6. Check extension and decoded format consistency.
+7. Read dimensions before full decoding.
+8. Validate minimum and maximum dimensions.
+9. Fully decode image using Pillow load().
+10. Treat decompression-bomb warnings as errors.
+11. Compute SHA-256 over exact original bytes.
+12. Preserve original image bytes for evidence storage.
+
+Allowed:
+- JPEG.
+- PNG.
+
+Maximum size:
+5 MiB.
+
+Dimensions:
+64–4096 inclusive for both width and height.
+
+Invalid cases:
+- Text renamed as .jpg.
+- Corrupted image.
+- Truncated image.
+- Unsupported format.
+- Empty file.
+- Too-small image.
+- Too-large image.
+- Extension/format mismatch.
+- Oversized upload.
+
+The supplied Validation folder contains intentional invalid test cases. Use them.
+
+Invalid uploads must:
+- Be recorded as failed inspection attempts.
+- Have a readable failure reason.
+- Have no PredictionResult.
+- Never reach the inference helper.
+- Not stop valid images in the same batch.
+
+---
+
+# 10. INSPECTION DATA MODEL
+
+Create these core entities.
+
+## User
+
+Use Django's built-in User model or an appropriately configured custom User model.
+
+Role management through Django Groups:
+- ADMINISTRATOR
+- ENGINEER
+- SUPERVISOR
+
+## Product
+
+Fields:
+- product_id
+- name
+- description
+- active
+- created_by
+- created_at
+- updated_at
+
+Required product:
+P-PLATE01.
+
+## InspectionBatch
+
+Fields:
+- id
+- submitted_by
+- product
+- status
+- total_items
+- completed_items
+- failed_items
+- created_at
+- updated_at
+
+## Inspection
+
+Fields:
+- id
+- batch
+- product
+- submitted_by
+- image
+- image_sha256
+- original_filename
+- file_size
+- image_format
+- width
+- height
+- status
+- validation_status
+- failure_reason
+- created_at
+- updated_at
+
+## PredictionResult
+
+One-to-one relationship with Inspection.
+
+Fields:
+- predicted_class
+- confidence
+- defect_probability
+- model_version
+- decision_threshold
+- created_at
+
+Original prediction must be immutable after creation.
+
+## SupervisorReview
+
+Fields:
+- inspection
+- reviewer
+- reviewed_class
+- review_status
+- comment
+- created_at
+- updated_at
+
+Allow only one current SupervisorReview per inspection.
+
+## ReviewRevision
+
+Append-only review history.
+
+Fields:
+- review
+- reviewer
+- previous_class
+- new_class
+- comment
+- created_at
+
+Every revision must be preserved.
+
+## InspectionEvent
+
+Append-only application event history.
+
+Fields:
+- inspection
+- actor
+- event_type
+- description
+- metadata
+- created_at
+
+Never claim that an application-level audit log is cryptographically tamper-proof.
+
+## ModelMetadata
+
+Fields:
+- model_version
+- model_file_hash
+- inference_file_hash
+- metadata_file_hash
+- decision_threshold
+- model_status
+- created_at
+
+Use appropriate foreign keys, indexes, unique constraints and database constraints.
+
+Use transaction.atomic() and select_for_update() where needed for lifecycle and review consistency.
+
+---
+
+# 11. INSPECTION LIFECYCLE
+
+Inspection statuses:
+
+- QUEUED
+- PROCESSING
+- COMPLETED
+- FAILED
+
+Validation statuses:
+
+- PENDING
+- PASSED
+- FAILED
+
+Review statuses:
+
+- UNREVIEWED
+- CONFIRMED
+- CORRECTED
+
+Batch statuses:
+
+- QUEUED
+- PROCESSING
+- PARTIAL
+- COMPLETED
+- FAILED
+
+Batch aggregation rules:
+
+1. All completed → COMPLETED.
+2. All failed → FAILED.
+3. No queued or processing items, with both completed and failed items → PARTIAL.
+4. Otherwise, if any item is processing → PROCESSING.
+5. Otherwise, if any item is queued → QUEUED.
+
+PARTIAL must only be assigned after all items have reached a terminal state.
+
+PostgreSQL must be the source of truth for inspection and batch status.
+
+Do not rely on Redis task state as the source of truth.
+
+---
+
+# 12. CELERY AND REDIS BACKGROUND PROCESSING
+
+Single image:
+- Process synchronously through the validated inference service.
+
+Batch:
+- Process asynchronously through Celery and Redis.
+
+Requirements:
+
+- Each batch item is an independent task.
+- One invalid image must not stop other items.
+- Persist every item's state.
+- Store readable failure reasons.
+- Pass database IDs, not image bytes, in Celery task payloads.
+- Dispatch tasks using transaction.on_commit().
+- Use atomic inspection claiming.
+- Use processing tokens or equivalent fencing.
+- Track attempt counts.
+- Implement leases and expired processing recovery.
+- Do not hold database locks during model inference.
+- Recheck task ownership before saving results.
+- Prevent duplicate PredictionResult records.
+- Retry transient failures with backoff.
+- Do not retry deterministic validation failures.
+- Reconcile queued records whose task enqueue failed.
+- Recover expired processing records.
+- Prevent stale workers from overwriting newer results.
+
+Provide:
+- Batch progress API.
+- Per-item status API.
+- Failure details.
+- Processing timeline.
+
+For local Windows development, document the appropriate Celery worker command and limitations.
+
+Do not pretend Celery is running merely because its Python package is installed.
+
+---
+
+# 13. EVIDENCE PASSPORT
+
+Build a distinctive feature named EVIDENCE PASSPORT.
+
+Every inspection should have a dedicated evidence page.
+
+Display:
+
+- Inspection ID.
+- Original image.
+- Original filename.
+- Product.
+- Submitter.
+- Submission timestamp.
+- Image SHA-256.
+- File size.
+- Image format.
+- Image dimensions.
+- Validation result.
+- Original AI prediction.
+- Confidence.
+- Defect probability.
+- Model version.
+- Decision threshold.
+- Supervisor review.
+- Reviewer identity.
+- Review timestamp.
+- Review comment.
+- Full inspection event timeline.
+
+Add a VERIFY IMAGE INTEGRITY action.
+
+It must recompute SHA-256 from the stored original image and compare it with the saved hash.
+
+Display:
+- MATCH.
+- MISMATCH.
+- VERIFICATION ERROR.
+
+Explain that a matching hash verifies the stored bytes against the saved digest, but does not independently prove the image's source or authenticity.
+
+---
+
+# 14. ADVANCED ANALYTICS
+
+Implement meaningful analytics using actual database records.
+
+Administrator analytics:
+- Inspection volume.
+- Completed versus failed.
+- Normal versus Defective.
+- Batch processing statistics.
+- User activity.
+- Inspection trends.
+
+Engineer analytics:
+- Personal inspection count.
+- Personal completion rate.
+- Normal versus Defective predictions.
+- Recent inspection activity.
+
+Supervisor analytics:
+- Pending reviews.
+- Confirmed predictions.
+- Corrected predictions.
+- Human-AI disagreement.
+- Review trends.
+
+Threshold-aware review queue:
+
+Sort inspections by:
+
+abs(defect_probability - 0.5)
+
+Ascending.
+
+This is a review prioritization heuristic, not calibrated uncertainty.
+
+Do not change the inference threshold.
+
+Human-AI disagreement:
+
+Identify cases where the supervisor's reviewed class differs from the original AI prediction.
+
+Do not automatically label disagreement as model error.
+
+Provide clear charts, useful filters and responsive data tables.
+
+---
+
+# 15. MODEL EVALUATION
+
+Evaluate all 60 supplied labeled samples.
+
+Use the actual inference helper and the supplied labels.csv only for evaluation.
+
+Do not use labels.csv for live predictions.
+
+Defective is the positive class.
+
+Calculate:
+
+- True Positive.
+- True Negative.
+- False Positive.
+- False Negative.
+- Accuracy.
+- Precision.
+- Recall.
+- F1 score.
+- Defect recall.
+
+Display a confusion matrix.
+
+Include the model version and evaluation timestamp.
+
+Clearly label the result:
+
+SYNTHETIC DEVELOPMENT DATASET EVALUATION.
+
+The supplied dataset is synthetic and does not prove real factory performance.
+
+Do not fabricate benchmark results or claim performance on unseen data.
+
+Explain the model's limitations:
+- It does not identify defect type.
+- It does not locate defects.
+- It does not estimate severity or cause.
+- It is not a guarantee of real-world manufacturing quality.
+- Confidence scores are not necessarily calibrated.
+
+---
+
+# 16. REST API
+
+Implement functional Django REST Framework endpoints.
+
+Suggested endpoint groups:
+
+Authentication:
+- POST /api/v1/auth/login/
+- POST /api/v1/auth/logout/
+- POST /api/v1/auth/register/
+- GET /api/v1/auth/me/
+
+Products:
+- GET /api/v1/products/
+- POST /api/v1/products/
+- GET /api/v1/products/{id}/
+- PATCH /api/v1/products/{id}/
+
+Inspections:
+- POST /api/v1/inspections/single/
+- POST /api/v1/inspections/batch/
+- GET /api/v1/inspections/
+- GET /api/v1/inspections/{id}/
+- GET /api/v1/inspections/{id}/passport/
+- GET /api/v1/inspections/{id}/events/
+- POST /api/v1/inspections/{id}/verify-integrity/
+
+Batch processing:
+- GET /api/v1/batches/
+- GET /api/v1/batches/{id}/
+- GET /api/v1/batches/{id}/progress/
+
+Supervisor:
+- GET /api/v1/reviews/queue/
+- POST /api/v1/reviews/{inspection_id}/
+- GET /api/v1/reviews/{inspection_id}/
+- GET /api/v1/reviews/{inspection_id}/history/
+
+Analytics:
+- GET /api/v1/analytics/admin/
+- GET /api/v1/analytics/engineer/
+- GET /api/v1/analytics/supervisor/
+
+Model:
+- GET /api/v1/model/status/
+- GET /api/v1/model/evaluation/
+
+You may adjust endpoint naming if necessary, but all required capabilities must exist.
+
+Implement:
+- Serializers.
+- Views.
+- URL routing.
+- Permissions.
+- Input validation.
+- Pagination.
+- Filtering.
+- Consistent JSON responses.
+- Appropriate HTTP status codes.
+- Error messages.
+
+Every sensitive operation must enforce permissions on the server.
+
+Never rely on hiding frontend buttons as authorization.
+
+---
+
+# 17. SECURITY REQUIREMENTS
+
+Implement:
+
+- Django authentication.
+- Django Groups and permissions.
+- Backend role enforcement.
+- Engineer ownership filtering.
+- Supervisor-only review authorization.
+- Administrator-only product management.
+- CSRF protection for session-based writes.
+- Secure password handling.
+- Input validation.
+- File content validation.
+- Private uploaded image storage.
+- Safe media access through authorized views.
+- No hardcoded secrets.
+- Environment-based configuration.
+- Safe error messages.
+- Protection against unauthorized direct API access.
+- Protection against public role escalation.
+
+An Engineer attempting a review must receive an appropriate HTTP 403 response and must not modify either the original prediction or review records.
+
+---
+
+# 18. PREMIUM UI/UX DESIGN
+
+Build a distinctive industrial AI quality-assurance interface.
+
+Brand:
+SPECTRΛ
+
+Design direction:
+- Premium enterprise industrial SaaS.
+- Modern manufacturing technology.
+- Professional and clean.
+- Dark visual identity.
+- Strong information hierarchy.
+- Responsive layouts.
+- Consistent design system.
+
+Suggested colour palette:
+
+Primary background: #080D16
+Secondary background: #101827
+Card background: #19263A
+Elevated surface: #202F45
+Primary cyan: #22DDF2
+Secondary cyan: #00B8D4
+Text primary: #F4F7FC
+Text secondary: #94A3B8
+Success: #22C55E
+Warning: #F59E0B
+Danger: #EF4444
+Borders: #334155
+
+Use:
+- Modern typography such as Inter.
+- Professional iconography.
+- Subtle shadows.
+- Consistent rounded corners.
+- Smooth hover effects.
+- Refined transitions.
+- Clear loading indicators.
+- Skeleton loading where appropriate.
+- Toast notifications.
+- Responsive tables.
+- Accessible forms.
+- Empty states.
+- Error states.
+- Confirmation dialogs.
+
+Do not overuse gradients or animations.
+
+Avoid generic AI dashboard designs.
+
+Create separate layouts for:
+1. Administrator Control Room.
+2. Engineer Inspection Console.
+3. Supervisor Assurance Desk.
+
+All displayed values must come from actual APIs and PostgreSQL records.
+
+Do not fill dashboards with fake statistics or fabricated inspection history.
+
+---
+
+# 19. REQUIRED USER EXPERIENCE
+
+Engineer workflow:
+
+1. Sign in.
+2. Open Engineer Inspection Console.
+3. Select P-PLATE01.
+4. Upload one image.
+5. View image preview.
+6. Submit inspection.
+7. View actual AI prediction.
+8. View confidence and defect probability.
+9. Open Evidence Passport.
+10. Upload a batch.
+11. Track individual item statuses.
+12. View personal inspection history.
+
+Supervisor workflow:
+
+1. Sign in.
+2. Open Supervisor Assurance Desk.
+3. View all inspections.
+4. Filter completed inspections.
+5. Open an inspection.
+6. Inspect the original AI result.
+7. Confirm or correct the prediction.
+8. Add an optional comment.
+9. Save review.
+10. View review history and original AI result.
+11. Verify the record after refreshing the page.
+
+Administrator workflow:
+
+1. Sign in.
+2. Open Admin Control Room.
+3. View system statistics.
+4. Manage products.
+5. View inspection activity.
+6. Monitor model status.
+7. Monitor batch processing.
+8. Manage authorized user accounts.
+
+---
+
+# 20. AUTOMATED TESTING
+
+Write actual automated tests.
+
+Mandatory tests:
+
+1. Valid JPEG accepted.
+2. Valid PNG accepted.
+3. Text file renamed to JPG rejected.
+4. Corrupt image rejected.
+5. Truncated image rejected.
+6. Image smaller than 64 pixels rejected.
+7. Image larger than 4096 pixels rejected.
+8. Image over 5 MiB rejected.
+9. Empty batch rejected.
+10. Batch over 10 items rejected.
+11. Invalid batch item is saved as failed.
+12. Invalid image never reaches inference.
+13. Valid items continue when another batch item fails.
+14. Actual prediction is persisted.
+15. Original prediction remains immutable.
+16. Engineer sees only personal inspection history.
+17. Supervisor can review completed inspections.
+18. Engineer cannot submit a review.
+19. Direct API review attempt by Engineer returns 403.
+20. Unauthorized review does not modify data.
+21. Review revisions are preserved.
+22. Evidence Passport returns correct information.
+23. Image integrity verification works.
+24. Batch status aggregation works.
+25. Duplicate task execution does not create duplicate predictions.
+
+Test PostgreSQL behaviour.
+
+Do not use SQLite for tests if the test environment can be configured with PostgreSQL.
+
+Use proper test isolation.
+
+Report actual test results, including failures.
+
+---
+
+# 21. ENVIRONMENT CONFIGURATION
+
+Create a safe .env.example.
+
+Expected variables:
+
+DEBUG=True
+SECRET_KEY=
+ALLOWED_HOSTS=localhost,127.0.0.1
+DB_NAME=spectra_db
+DB_USER=
+DB_PASSWORD=
+DB_HOST=localhost
+DB_PORT=5432
+REDIS_URL=redis://127.0.0.1:6379/0
+
+The actual .env must remain private.
+
+Do not output real passwords or secret keys.
+
+Do not configure SQLite as a fallback.
+
+Use compatible package versions in requirements.txt.
+
+Check compatibility with the user's Windows environment and Python version before selecting dependency versions.
+
+---
+
+# 22. WINDOWS EXECUTION SUPPORT
+
+The project will be run locally on Windows using PowerShell.
+
+Provide exact instructions for:
+
+1. Opening the project folder.
+2. Creating or activating the virtual environment.
+3. Installing dependencies.
+4. Configuring .env.
+5. Creating the PostgreSQL database if it does not exist.
+6. Applying migrations.
+7. Creating an administrator account.
+8. Starting Redis.
+9. Starting Django.
+10. Starting Celery.
+11. Opening the web application.
+12. Running automated tests.
+
+Use actual project paths and module names.
+
+Do not use placeholder paths such as C:\path\to\project in executable instructions.
+
+Explain that Windows Celery development workers may require the solo pool or WSL2/Linux.
+
+Example development commands should be adapted to the actual generated project:
+
+python manage.py check
+python manage.py migrate
+python manage.py createsuperuser
+python manage.py runserver
+
+Celery worker command must use the actual Celery application module.
+
+Do not claim Redis or Celery is operational unless connectivity has been tested.
+
+---
+
+# 23. IMPLEMENTATION STRATEGY
+
+Build the complete application in a controlled sequence.
+
+Priority 0 — Mandatory challenge functionality:
+- Project configuration.
+- PostgreSQL.
+- Authentication.
+- Role permissions.
+- Product.
+- Model integration.
+- Image validation.
+- Single inspection.
+- Inspection persistence.
+- Batch submission.
+- Celery and Redis.
+- Supervisor reviews.
+- Immutable predictions.
+- Required automated tests.
+
+Priority 1 — Complete user workflows:
+- Three dashboards.
+- Authentication tabs.
+- Inspection history.
+- Batch progress.
+- Evidence Passport.
+- Review history.
+- Responsive interface.
+
+Priority 2 — Advanced capabilities:
+- Image integrity verification.
+- Audit timeline.
+- Model evaluation.
+- Analytics.
+- Threshold-aware queue.
+- Human-AI disagreement analysis.
+
+Priority 3 — Visual polish:
+- Subtle animations.
+- Interactive charts.
+- Refined transitions.
+- Export functionality only where useful.
+
+Do not spend time adding unnecessary features before mandatory challenge functionality works.
+
+Do not stop after producing a plan or architecture document.
+
+Implement the application.
+
+---
+
+# 24. FINAL VALIDATION AND DELIVERY
+
+Before declaring the project complete:
+
+1. Inspect the full generated source tree.
+2. Verify all required modules exist.
+3. Run Django system checks.
+4. Verify PostgreSQL connectivity.
+5. Verify migration status.
+6. Verify model hashes.
+7. Verify actual model inference.
+8. Test image validation.
+9. Test single inspection persistence.
+10. Test batch processing.
+11. Test supervisor review.
+12. Test engineer review denial.
+13. Test Evidence Passport.
+14. Test image integrity verification.
+15. Evaluate all 60 labeled samples.
+16. Run automated tests.
+17. Verify all three dashboard routes.
+18. Check frontend console errors.
+19. Check API failures.
+20. Verify no SQLite references or fallback exist.
+
+Create a README containing:
+- Project overview.
+- Architecture.
+- Technology stack.
+- Features.
+- Database setup.
+- Redis setup.
+- Environment configuration.
+- Run commands.
+- Testing commands.
+- API documentation.
+- Role descriptions.
+- Model limitations.
+- Evaluation results.
+
+Create a final implementation report with:
+
+A. Completed features.
+B. Files and modules created.
+C. Database tables.
+D. API endpoints.
+E. Authentication and permissions.
+F. Model integration results.
+G. Image validation results.
+H. Celery and Redis status.
+I. Automated test results.
+J. 60-sample evaluation metrics.
+K. Remaining limitations.
+L. Exact commands to run the application locally.
+
+Clearly distinguish:
+- Implemented.
+- Tested successfully.
+- Implemented but not tested.
+- Not implemented.
+
+Never claim success without execution evidence.
+
+---
+
+# FINAL INSTRUCTION
+
+Build SPECTRΛ as a complete, coherent and functional Django + PostgreSQL web application.
+
+Use the uploaded official Round 2 Student Pack as the source of truth for challenge requirements and model integration.
+
+Use the approved SPECTRΛ V2 + V2.1 architecture described in this prompt.
+
+Preserve the supplied classifier and its preprocessing.
+
+Preserve PostgreSQL as the only database.
+
+Use Django templates, Bootstrap 5 and Vanilla JavaScript.
+
+Provide three genuinely separate role-based dashboards.
+
+Provide a clear Sign In / Register experience with secure role assignment.
+
+Make every important button functional.
+
+Use actual database records and actual AI inference.
+
+Do not create fake backend functionality.
+
+Do not silently replace required technologies.
+
+Do not stop at a frontend mockup.
+
+Do not ask unnecessary clarification questions.
+
+If a requirement cannot be completed, explain the precise blocker and implement the remaining requirements without compromising the architecture.
+
+**The final deliverable must be a runnable, tested, full-stack SPECTRΛ application that satisfies the official Round 2 challenge requirements.**

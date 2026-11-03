@@ -1,0 +1,93 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="csrf-token" content="{{ csrf_token }}" />
+  <title>{% block title %}SPECTRΛ — AI Visual Quality Assurance & Evidence Platform{% endblock %}</title>
+  <meta name="description" content="Industrial AI visual quality assurance and evidence platform for metal plate defect inspection, asynchronous batch processing, and supervisor review accountability." />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
+  <link href="{% static 'css/spectra.css' %}" rel="stylesheet" />
+  {% block extra_head %}{% endblock %}
+</head>
+<body>
+  <!-- Strict 3-Zone Top Bar Contract -->
+  <header class="spectra-topbar">
+    <!-- Zone 1: Single text element wordmark -->
+    <a href="{{ dashboard_url }}" class="spectra-brand">SPECTRΛ</a>
+
+    <!-- Zone 2: Concise single-line navigation links -->
+    <nav class="spectra-nav d-none d-md-flex" aria-label="Primary Navigation">
+      {% if current_user.is_authenticated %}
+        {% if user_role == "ADMINISTRATOR" %}
+          <a href="/admin-console/" class="spectra-nav-link {% if active_nav == 'admin' %}active{% endif %}">Control Room</a>
+          <a href="/engineer/" class="spectra-nav-link {% if active_nav == 'engineer' %}active{% endif %}">Inspection Console</a>
+          <a href="/supervisor/" class="spectra-nav-link {% if active_nav == 'supervisor' %}active{% endif %}">Assurance Desk</a>
+          <a href="/model-evaluation/" class="spectra-nav-link {% if active_nav == 'evaluation' %}active{% endif %}">Model Evaluation</a>
+        {% elif user_role == "SUPERVISOR" %}
+          <a href="/supervisor/" class="spectra-nav-link {% if active_nav == 'supervisor' %}active{% endif %}">Assurance Desk</a>
+          <a href="/model-evaluation/" class="spectra-nav-link {% if active_nav == 'evaluation' %}active{% endif %}">Model Evaluation</a>
+        {% else %}
+          <a href="/engineer/" class="spectra-nav-link {% if active_nav == 'engineer' %}active{% endif %}">Inspection Console</a>
+          <a href="/model-evaluation/" class="spectra-nav-link {% if active_nav == 'evaluation' %}active{% endif %}">Model Metrics</a>
+        {% endif %}
+      {% else %}
+        <a href="/login/" class="spectra-nav-link active">Authentication</a>
+      {% endif %}
+    </nav>
+
+    <!-- Zone 3: 1 Primary Action -->
+    <div class="d-flex align-items-center shrink-0">
+      {% if current_user.is_authenticated %}
+        <form method="post" action="/logout/" class="m-0">
+          {% csrf_token %}
+          <button type="submit" class="btn-spectra-outline">Sign Out ({{ current_user.username }})</button>
+        </form>
+      {% else %}
+        <a href="/login/" class="btn-spectra-primary text-decoration-none">Sign In</a>
+      {% endif %}
+    </div>
+  </header>
+
+  {% if current_user.is_authenticated %}
+  <!-- Workspace Context Bar (Below Topbar) -->
+  <div style="background-color: #0B121F; border-bottom: 1px solid #334155;">
+    <div class="spectra-container py-2 d-flex flex-wrap align-items-center justify-content-between gap-2">
+      <div class="meta-inline">
+        <span>Operator: <strong class="text-light">{{ current_user.username }}</strong></span>
+        <span class="meta-sep">·</span>
+        <span>Role: <strong style="color: #22DDF2;">{{ user_role }}</strong></span>
+        <span class="meta-sep">·</span>
+        <span>Active Product: <strong class="font-mono text-light">P-PLATE01</strong></span>
+        <span class="meta-sep">·</span>
+        <span>Classifier: <strong class="font-mono text-light">BIT-PLATE-CV-1.0</strong></span>
+      </div>
+      <div class="d-flex align-items-center gap-2 flex-wrap">
+        <span class="meta-inline me-1">Switch Role Session:</span>
+        <a href="/?demo_role=engineer" class="btn-spectra-outline py-1 px-2" style="font-size: 0.76rem;">Engineer Console</a>
+        <a href="/?demo_role=supervisor" class="btn-spectra-outline py-1 px-2" style="font-size: 0.76rem;">Supervisor Desk</a>
+        <a href="/?demo_role=admin" class="btn-spectra-outline py-1 px-2" style="font-size: 0.76rem;">Admin Control Room</a>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <main class="spectra-container">
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer style="border-top: 1px solid #334155; background-color: #080D16;" class="py-4 mt-5">
+    <div class="spectra-container py-0 d-flex flex-wrap justify-content-between align-items-center gap-3 meta-inline">
+      <div>SPECTRΛ — AI Visual Quality Assurance & Evidence Platform · Round 2 Hackathon Implementation</div>
+      <div>Database: PostgreSQL (spectra_db) · Queue: Celery & Redis · Model: BIT-PLATE-CV-1.0</div>
+    </div>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <script src="{% static 'js/spectra.js' %}"></script>
+  {% block extra_scripts %}{% endblock %}
+</body>
+</html>

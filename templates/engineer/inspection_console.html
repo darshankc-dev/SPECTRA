@@ -1,0 +1,719 @@
+{% extends "base.html" %}
+{% block title %}Engineer Inspection Console — SPECTRΛ{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-end gap-3 mb-4">
+  <div>
+    <div class="meta-inline mb-1">01. Visual Quality Screening &amp; Batch Submission</div>
+    <h1 class="h3 fw-bold mb-0">Engineer Inspection Console</h1>
+  </div>
+  <div class="d-flex flex-wrap gap-2">
+    <button type="button" class="btn-spectra-outline" onclick="refreshEngineerConsole()">
+      <i class="bi bi-arrow-clockwise"></i> Refresh History
+    </button>
+  </div>
+</div>
+
+<!-- Engineer Personal KPI Strip -->
+<section class="spectra-kpi-strip mb-4" aria-label="Personal Engineer Statistics">
+  <div class="spectra-kpi-cell">
+    <div class="spectra-kpi-label">Personal Inspections</div>
+    <div class="spectra-kpi-value" id="eng-kpi-total">0</div>
+    <div class="spectra-kpi-sub">Submitted by {{ current_user.username }}</div>
+  </div>
+  <div class="spectra-kpi-cell">
+    <div class="spectra-kpi-label">Completed Inspections</div>
+    <div class="spectra-kpi-value status-text-completed" id="eng-kpi-completed">0</div>
+    <div class="spectra-kpi-sub"><span id="eng-kpi-rate" class="font-mono">0%</span> completion rate</div>
+  </div>
+  <div class="spectra-kpi-cell">
+    <div class="spectra-kpi-label">Validation Failures</div>
+    <div class="spectra-kpi-value status-text-failed" id="eng-kpi-failed">0</div>
+    <div class="spectra-kpi-sub">Rejected prior to inference</div>
+  </div>
+  <div class="spectra-kpi-cell">
+    <div class="spectra-kpi-label">AI Normal / Defective</div>
+    <div class="spectra-kpi-value">
+      <span class="status-text-normal" id="eng-kpi-normal">0</span> / <span class="status-text-defective" id="eng-kpi-defective">0</span>
+    </div>
+    <div class="spectra-kpi-sub">Threshold: 0.50</div>
+  </div>
+  <div class="spectra-kpi-cell">
+    <div class="spectra-kpi-label">Submitted Batches</div>
+    <div class="spectra-kpi-value" id="eng-kpi-batches">0</div>
+    <div class="spectra-kpi-sub">1–10 items per batch</div>
+  </div>
+  <div class="spectra-kpi-cell">
+    <div class="spectra-kpi-label">Supervisor Reviewed</div>
+    <div class="spectra-kpi-value" id="eng-kpi-reviewed">0</div>
+    <div class="spectra-kpi-sub">Confirmed or corrected</div>
+  </div>
+</section>
+
+<!-- Row 2: Upload Console (Single & Batch) + Live Result / Batch Progress -->
+<div class="row g-4 mb-4">
+  <!-- Left: Upload Controls -->
+  <div class="col-lg-6">
+    <div class="spectra-surface h-100">
+      <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+        <div class="spectra-segmented" role="tablist" aria-label="Upload Mode Selector">
+          <button type="button" id="mode-single-btn" class="spectra-segment-btn active" onclick="switchUploadMode('single')">
+            Single Image Inspection
+          </button>
+          <button type="button" id="mode-batch-btn" class="spectra-segment-btn" onclick="switchUploadMode('batch')">
+            Batch Upload (1–10 Images)
+          </button>
+        </div>
+        <span class="meta-inline font-mono">MAX 5.00 MiB · 64–4096 PX</span>
+      </div>
+
+      <!-- Product Selector -->
+      <div class="mb-3">
+        <label for="inspection-product-select" class="spectra-label">Target Manufacturing Product</label>
+        <select id="inspection-product-select" class="spectra-select font-mono">
+          {% for p in active_products %}
+            <option value="{{ p.product_id }}">{{ p.product_id }} — {{ p.name }}</option>
+          {% empty %}
+            <option value="P-PLATE01">P-PLATE01 — Demonstration Metal Plate</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <!-- SINGLE UPLOAD PANEL -->
+      <div id="panel-single-upload">
+        <form id="single-upload-form" onsubmit="handleSingleUpload(event)">
+          <div class="spectra-dropzone mb-3" id="single-dropzone" onclick="document.getElementById('single-file-input').click()">
+            <i class="bi bi-cloud-arrow-up fs-2" style="color: #22DDF2;"></i>
+            <div class="fw-semibold mt-2">Select or Drag &amp; Drop a Single JPEG or PNG Image</div>
+            <div class="meta-inline mt-1">Validated with 12-step Pillow decode check before BIT-PLATE-CV-1.0 inference</div>
+            <input type="file" id="single-file-input" accept=".jpg,.jpeg,.png,image/jpeg,image/png" class="d-none" onchange="previewSingleFile(this)" />
+          </div>
+
+          <!-- Single Image Preview Box -->
+          <div id="single-preview-box" class="spectra-surface-secondary mb-3 d-none">
+            <div class="d-flex align-items-center gap-3">
+              <img id="single-preview-img" src="" alt="Selected upload preview" style="width: 72px; height: 72px; object-fit: cover; border-radius: 6px; border: 1px solid #334155;" />
+              <div class="flex-grow-1">
+                <div class="fw-semibold font-mono" id="single-preview-name">filename.png</div>
+                <div class="meta-inline" id="single-preview-meta">0 KiB</div>
+              </div>
+              <button type="button" class="btn-spectra-outline py-1 px-2" onclick="clearSingleSelection()">Clear</button>
+            </div>
+          </div>
+
+          <button type="submit" id="single-submit-btn" class="btn-spectra-primary w-100 py-2">
+            Run Visual Quality Inspection
+          </button>
+        </form>
+
+        <hr class="spectra-divider" />
+
+        <!-- Quick Official Pack Sample & Validation Test Runner -->
+        <div>
+          <div class="fw-semibold mb-1" style="font-size: 0.84rem;">Official Pack Quick Test (Samples &amp; Intentional Invalid Inputs)</div>
+          <div class="meta-inline mb-2">Execute real pipeline checks using files directly from the uploaded Round 2 Student Pack:</div>
+          <div class="d-flex flex-wrap gap-2">
+            <button type="button" class="btn-spectra-outline py-1 px-2" style="font-size: 0.78rem;" onclick="runPackSampleSingle('inspection_001.png')">
+              Sample 001 (Defective PNG)
+            </button>
+            <button type="button" class="btn-spectra-outline py-1 px-2" style="font-size: 0.78rem;" onclick="runPackSampleSingle('inspection_002.jpg')">
+              Sample 002 (Normal JPG)
+            </button>
+            <button type="button" class="btn-spectra-outline py-1 px-2" style="font-size: 0.78rem;" onclick="runPackSampleSingle('Validation/not_an_image.jpg')">
+              Invalid: not_an_image.jpg
+            </button>
+            <button type="button" class="btn-spectra-outline py-1 px-2" style="font-size: 0.78rem;" onclick="runPackSampleSingle('Validation/too_small.png')">
+              Invalid: too_small.png (32×32)
+            </button>
+            <button type="button" class="btn-spectra-outline py-1 px-2" style="font-size: 0.78rem;" onclick="runPackSampleSingle('Validation/corrupt_image.png')">
+              Invalid: corrupt_image.png
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- BATCH UPLOAD PANEL -->
+      <div id="panel-batch-upload" class="d-none">
+        <form id="batch-upload-form" onsubmit="handleBatchUpload(event)">
+          <div class="spectra-dropzone mb-3" onclick="document.getElementById('batch-file-input').click()">
+            <i class="bi bi-layers fs-2" style="color: #22DDF2;"></i>
+            <div class="fw-semibold mt-2">Select 1 to 10 Images for Asynchronous Batch Processing</div>
+            <div class="meta-inline mt-1">Processed independently via Celery &amp; Redis. Invalid items do not stop valid items.</div>
+            <input type="file" id="batch-file-input" multiple accept=".jpg,.jpeg,.png,image/jpeg,image/png" class="d-none" onchange="previewBatchFiles(this)" />
+          </div>
+
+          <div id="batch-selection-summary" class="spectra-surface-secondary mb-3 d-none">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <span class="fw-semibold font-mono" id="batch-count-label">0 files selected</span>
+              <button type="button" class="btn-spectra-outline py-1 px-2" style="font-size: 0.76rem;" onclick="clearBatchSelection()">Clear</button>
+            </div>
+            <div id="batch-file-list" class="meta-inline font-mono"></div>
+          </div>
+
+          <button type="submit" id="batch-submit-btn" class="btn-spectra-primary w-100 py-2">
+            Dispatch Batch to Celery Queue
+          </button>
+        </form>
+
+        <hr class="spectra-divider" />
+
+        <div>
+          <div class="fw-semibold mb-1" style="font-size: 0.84rem;">Official Pack Mixed Batch Test</div>
+          <div class="meta-inline mb-2">Submit a mixed batch containing valid samples and an intentional invalid file to verify PARTIAL batch aggregation:</div>
+          <div class="d-flex flex-wrap gap-2">
+            <button type="button" class="btn-spectra-outline py-1 px-2" style="font-size: 0.78rem;" onclick="runPresetMixedBatch()">
+              Submit Mixed Batch (3 Valid + 1 Invalid)
+            </button>
+            <button type="button" class="btn-spectra-outline py-1 px-2" style="font-size: 0.78rem;" onclick="runPresetValidBatch()">
+              Submit 4 Valid Samples Batch
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right: Live Inspection Result & Active Batch Progress -->
+  <div class="col-lg-6">
+    <div class="spectra-surface h-100" id="live-output-container">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+          <h2 class="h5 fw-bold mb-1" id="output-panel-title">02. Latest Inspection Result</h2>
+          <div class="meta-inline" id="output-panel-subtitle">Real-time output from BIT-PLATE-CV-1.0 or active batch status</div>
+        </div>
+        <span id="live-result-passport-link"></span>
+      </div>
+
+      <div id="live-output-body">
+        <div class="spectra-surface-secondary text-center py-5">
+          <div class="text-secondary mb-2">Upload an image or select a pack test sample on the left to view live inference output and Evidence Passport details.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Row 3: Recent Batches Progress Tracker -->
+<div class="spectra-surface mb-4">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+      <h2 class="h5 fw-bold mb-1">03. Personal Batch Processing Queue</h2>
+      <div class="meta-inline">Asynchronous Celery &amp; Redis batch runs (QUEUED · PROCESSING · PARTIAL · COMPLETED · FAILED)</div>
+    </div>
+  </div>
+  <div class="spectra-table-wrap">
+    <table class="spectra-table" aria-label="Personal Batches Table">
+      <thead>
+        <tr>
+          <th>Batch ID</th>
+          <th>Product</th>
+          <th>Batch Status</th>
+          <th>Progress</th>
+          <th>Completed</th>
+          <th>Failed</th>
+          <th>Submitted At</th>
+          <th>Inspect Batch</th>
+        </tr>
+      </thead>
+      <tbody id="engineer-batches-tbody">
+        <tr><td colspan="8" class="text-center text-secondary py-3">Loading batches...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Row 4: Personal Inspection History with Search & Filters -->
+<div class="spectra-surface">
+  <div class="d-flex flex-wrap justify-content-between align-items-end gap-3 mb-3">
+    <div>
+      <h2 class="h5 fw-bold mb-1">04. Personal Inspection History</h2>
+      <div class="meta-inline">Records submitted by <strong class="text-light">{{ current_user.username }}</strong> (strictly scoped to personal submissions)</div>
+    </div>
+
+    <!-- Filter Controls -->
+    <div class="d-flex flex-wrap gap-2 align-items-center">
+      <input type="text" id="eng-filter-search" class="spectra-input py-1 px-2" style="width: 190px; font-size: 0.82rem;" placeholder="Search filename or ID..." oninput="loadEngineerInspections()" />
+      <select id="eng-filter-status" class="spectra-select py-1 px-2" style="width: 145px; font-size: 0.82rem;" onchange="loadEngineerInspections()" aria-label="Filter by Status">
+        <option value="ALL">All Statuses</option>
+        <option value="COMPLETED">COMPLETED</option>
+        <option value="FAILED">FAILED</option>
+        <option value="PROCESSING">PROCESSING</option>
+        <option value="QUEUED">QUEUED</option>
+      </select>
+      <select id="eng-filter-pred" class="spectra-select py-1 px-2" style="width: 155px; font-size: 0.82rem;" onchange="loadEngineerInspections()" aria-label="Filter by Prediction">
+        <option value="ALL">All Predictions</option>
+        <option value="Normal">Predicted Normal</option>
+        <option value="Defective">Predicted Defective</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="spectra-table-wrap">
+    <table class="spectra-table" aria-label="Personal Inspection History Table">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Batch</th>
+          <th>Filename</th>
+          <th>Validation</th>
+          <th>Status</th>
+          <th>AI Prediction</th>
+          <th>Confidence</th>
+          <th>Defect Prob.</th>
+          <th>Supervisor Review</th>
+          <th>Timestamp</th>
+          <th>Evidence Passport</th>
+        </tr>
+      </thead>
+      <tbody id="engineer-inspections-tbody">
+        <tr><td colspan="11" class="text-center text-secondary py-4">Loading personal inspection history...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  let activeBatchPollTimer = null;
+
+  function switchUploadMode(mode) {
+    const singlePanel = document.getElementById('panel-single-upload');
+    const batchPanel = document.getElementById('panel-batch-upload');
+    const singleBtn = document.getElementById('mode-single-btn');
+    const batchBtn = document.getElementById('mode-batch-btn');
+
+    if (mode === 'single') {
+      singlePanel.classList.remove('d-none');
+      batchPanel.classList.add('d-none');
+      singleBtn.classList.add('active');
+      batchBtn.classList.remove('active');
+    } else {
+      singlePanel.classList.add('d-none');
+      batchPanel.classList.remove('d-none');
+      singleBtn.classList.remove('active');
+      batchBtn.classList.add('active');
+    }
+  }
+
+  function previewSingleFile(input) {
+    const box = document.getElementById('single-preview-box');
+    const img = document.getElementById('single-preview-img');
+    const nameEl = document.getElementById('single-preview-name');
+    const metaEl = document.getElementById('single-preview-meta');
+
+    if (!input.files || !input.files.length) {
+      box.classList.add('d-none');
+      return;
+    }
+    const file = input.files[0];
+    nameEl.textContent = file.name;
+    metaEl.textContent = `${Spectra.formatBytes(file.size)} · ${file.type || 'unknown type'}`;
+    box.classList.remove('d-none');
+
+    const reader = new FileReader();
+    reader.onload = e => { img.src = e.target.result; };
+    reader.readAsDataURL(file);
+  }
+
+  function clearSingleSelection() {
+    document.getElementById('single-file-input').value = '';
+    document.getElementById('single-preview-box').classList.add('d-none');
+  }
+
+  function previewBatchFiles(input) {
+    const summary = document.getElementById('batch-selection-summary');
+    const countLabel = document.getElementById('batch-count-label');
+    const listEl = document.getElementById('batch-file-list');
+
+    if (!input.files || !input.files.length) {
+      summary.classList.add('d-none');
+      return;
+    }
+    const files = Array.from(input.files);
+    countLabel.textContent = `${files.length} file(s) selected`;
+    listEl.innerHTML = files.map(f => `<div>· ${f.name} (${Spectra.formatBytes(f.size)})</div>`).join('');
+    summary.classList.remove('d-none');
+  }
+
+  function clearBatchSelection() {
+    document.getElementById('batch-file-input').value = '';
+    document.getElementById('batch-selection-summary').classList.add('d-none');
+  }
+
+  function renderSingleInspectionResult(ins) {
+    document.getElementById('output-panel-title').textContent = `02. Inspection #${ins.id} Result`;
+    document.getElementById('live-result-passport-link').innerHTML = `
+      <a href="/inspections/${ins.id}/passport/" class="btn-spectra-primary py-1 px-3 text-decoration-none" style="font-size: 0.8rem;">
+        Open Evidence Passport
+      </a>
+    `;
+
+    const body = document.getElementById('live-output-body');
+    if (ins.status === 'FAILED' || !ins.prediction) {
+      body.innerHTML = `
+        <div class="spectra-surface-secondary">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <span class="status-text-failed font-mono">VALIDATION FAILED — REJECTED BEFORE INFERENCE</span>
+            <span class="font-mono meta-inline">Inspection #${ins.id}</span>
+          </div>
+          <div class="fw-semibold mb-2">${ins.original_filename} (${Spectra.formatBytes(ins.file_size)})</div>
+          <div class="p-3 rounded mb-3" style="background-color: rgba(239, 68, 68, 0.14); border: 1px solid rgba(239, 68, 68, 0.4); color: #FCA5A5;">
+            <strong>Failure Reason:</strong> ${ins.failure_reason || 'Invalid image upload.'}
+          </div>
+          <div class="meta-inline font-mono">SHA-256: ${ins.image_sha256}</div>
+        </div>
+      `;
+      return;
+    }
+
+    const pred = ins.prediction;
+    const isDefective = pred.predicted_class === 'Defective';
+    const classStyle = isDefective ? 'status-text-defective' : 'status-text-normal';
+
+    body.innerHTML = `
+      <div class="row g-3 align-items-center">
+        <div class="col-sm-5">
+          <div class="evidence-frame">
+            <img src="${ins.image_url}" alt="${ins.original_filename}" referrerpolicy="no-referrer" />
+          </div>
+        </div>
+        <div class="col-sm-7">
+          <div class="spectra-surface-secondary">
+            <div class="meta-inline mb-1">Predicted Class (${pred.model_version})</div>
+            <div class="h3 fw-bold ${classStyle} mb-3">${pred.predicted_class}</div>
+
+            <div class="row g-2 mb-3">
+              <div class="col-6">
+                <div class="meta-inline">Confidence Score</div>
+                <div class="font-mono fs-5 fw-bold">${pred.confidence_percent.toFixed(2)}%</div>
+              </div>
+              <div class="col-6">
+                <div class="meta-inline">Defect Probability</div>
+                <div class="font-mono fs-5 fw-bold">${pred.defect_probability.toFixed(4)}</div>
+              </div>
+            </div>
+
+            <hr class="spectra-divider my-2" />
+            <div class="meta-inline font-mono">
+              <div>Product: ${ins.product_code}</div>
+              <div>File: ${ins.original_filename} (${ins.width}×${ins.height} ${ins.image_format})</div>
+              <div>Threshold: ${pred.decision_threshold}</div>
+              <div class="text-truncate" title="${ins.image_sha256}">SHA-256: ${ins.image_sha256.slice(0, 24)}...</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  async function handleSingleUpload(e) {
+    e.preventDefault();
+    const input = document.getElementById('single-file-input');
+    if (!input.files || !input.files.length) {
+      Spectra.toast('Please choose a JPEG or PNG image first.', 'warning');
+      return;
+    }
+    const product_id = document.getElementById('inspection-product-select').value;
+    const formData = new FormData();
+    formData.append('product_id', product_id);
+    formData.append('image', input.files[0]);
+
+    const btn = document.getElementById('single-submit-btn');
+    btn.disabled = true;
+    btn.textContent = 'Validating & Running Inference...';
+
+    const { ok, data } = await Spectra.apiFetch('/api/v1/inspections/single/', {
+      method: 'POST',
+      body: formData,
+    });
+
+    btn.disabled = false;
+    btn.textContent = 'Run Visual Quality Inspection';
+
+    if (data && data.inspection) {
+      renderSingleInspectionResult(data.inspection);
+      refreshEngineerConsole();
+      if (ok) {
+        Spectra.toast(`Inspection #${data.inspection.id} completed: ${data.inspection.prediction.predicted_class}`, 'success');
+      } else {
+        Spectra.toast(`Upload recorded as FAILED (#${data.inspection.id}): ${data.failure_reason}`, 'error');
+      }
+    } else {
+      Spectra.toast((data && data.error) || 'Upload failed.', 'error');
+    }
+  }
+
+  async function runPackSampleSingle(sampleName) {
+    const product_id = document.getElementById('inspection-product-select').value;
+    const { ok, data } = await Spectra.apiFetch('/api/v1/inspections/single/', {
+      method: 'POST',
+      body: { product_id, sample_name: sampleName },
+    });
+
+    if (data && data.inspection) {
+      renderSingleInspectionResult(data.inspection);
+      refreshEngineerConsole();
+      if (ok) {
+        Spectra.toast(`Pack sample '${sampleName}' -> ${data.inspection.prediction.predicted_class}`, 'success');
+      } else {
+        Spectra.toast(`Invalid pack file '${sampleName}' rejected and stored as FAILED (#${data.inspection.id}).`, 'warning');
+      }
+    } else {
+      Spectra.toast((data && data.error) || 'Failed to run sample.', 'error');
+    }
+  }
+
+  async function handleBatchUpload(e) {
+    e.preventDefault();
+    const input = document.getElementById('batch-file-input');
+    if (!input.files || !input.files.length) {
+      Spectra.toast('Select between 1 and 10 images to submit a batch.', 'warning');
+      return;
+    }
+    if (input.files.length > 10) {
+      Spectra.toast('Batch size exceeds maximum limit of 10 images.', 'error');
+      return;
+    }
+
+    const product_id = document.getElementById('inspection-product-select').value;
+    const formData = new FormData();
+    formData.append('product_id', product_id);
+    Array.from(input.files).forEach(f => formData.append('images', f));
+
+    const btn = document.getElementById('batch-submit-btn');
+    btn.disabled = true;
+    btn.textContent = 'Dispatching Batch...';
+
+    const { ok, data } = await Spectra.apiFetch('/api/v1/inspections/batch/', {
+      method: 'POST',
+      body: formData,
+    });
+
+    btn.disabled = false;
+    btn.textContent = 'Dispatch Batch to Celery Queue';
+
+    if (ok && data.batch) {
+      Spectra.toast(data.message || `Batch #${data.batch.id} queued.`, 'success');
+      clearBatchSelection();
+      inspectBatchProgress(data.batch.id);
+      refreshEngineerConsole();
+    } else {
+      Spectra.toast((data && data.error) || 'Batch submission failed.', 'error');
+    }
+  }
+
+  async function runPresetMixedBatch() {
+    const product_id = document.getElementById('inspection-product-select').value;
+    const preset_files = [
+      'inspection_007.png',
+      'inspection_009.png',
+      'inspection_011.png',
+      'not_an_image.jpg',
+    ];
+    const { ok, data } = await Spectra.apiFetch('/api/v1/inspections/batch/', {
+      method: 'POST',
+      body: { product_id, preset_files },
+    });
+    if (ok && data.batch) {
+      Spectra.toast(`Mixed Batch #${data.batch.id} submitted (3 valid + 1 invalid).`, 'info');
+      inspectBatchProgress(data.batch.id);
+      refreshEngineerConsole();
+    } else {
+      Spectra.toast((data && data.error) || 'Batch failed.', 'error');
+    }
+  }
+
+  async function runPresetValidBatch() {
+    const product_id = document.getElementById('inspection-product-select').value;
+    const preset_files = [
+      'inspection_012.jpg',
+      'inspection_013.png',
+      'inspection_014.jpg',
+      'inspection_015.png',
+    ];
+    const { ok, data } = await Spectra.apiFetch('/api/v1/inspections/batch/', {
+      method: 'POST',
+      body: { product_id, preset_files },
+    });
+    if (ok && data.batch) {
+      Spectra.toast(`Batch #${data.batch.id} submitted (4 valid samples).`, 'success');
+      inspectBatchProgress(data.batch.id);
+      refreshEngineerConsole();
+    }
+  }
+
+  async function inspectBatchProgress(batchId) {
+    if (activeBatchPollTimer) {
+      clearInterval(activeBatchPollTimer);
+      activeBatchPollTimer = null;
+    }
+
+    async function fetchAndRender() {
+      const { ok, data } = await Spectra.apiFetch(`/api/v1/batches/${batchId}/progress/`);
+      if (!ok) return;
+
+      document.getElementById('output-panel-title').textContent = `02. Batch #${data.batch_id} Progress (${data.status})`;
+      document.getElementById('live-result-passport-link').innerHTML = `
+        <span class="font-mono meta-inline">${data.completed_items} completed · ${data.failed_items} failed / ${data.total_items} total</span>
+      `;
+
+      const rows = (data.items || []).map(item => {
+        const pred = item.prediction;
+        const stClass = item.status === 'COMPLETED' ? 'status-text-completed' : (item.status === 'FAILED' ? 'status-text-failed' : 'status-text-warning');
+        const detail = pred
+          ? `<span class="${pred.predicted_class === 'Defective' ? 'status-text-defective' : 'status-text-normal'}">${pred.predicted_class}</span> <span class="font-mono">(${pred.confidence_percent.toFixed(1)}%)</span>`
+          : `<span class="text-secondary" style="font-size: 0.78rem;">${item.failure_reason || 'Queued / Processing...'}</span>`;
+        return `
+          <tr>
+            <td class="font-mono">#${item.id}</td>
+            <td>${item.original_filename}</td>
+            <td class="font-mono ${stClass}">${item.status}</td>
+            <td>${detail}</td>
+            <td><a href="/inspections/${item.id}/passport/" class="btn-spectra-outline py-1 px-2" style="font-size: 0.74rem;">Passport</a></td>
+          </tr>
+        `;
+      }).join('');
+
+      document.getElementById('live-output-body').innerHTML = `
+        <div class="spectra-table-wrap">
+          <table class="spectra-table">
+            <thead>
+              <tr>
+                <th>Item ID</th>
+                <th>Filename</th>
+                <th>Status</th>
+                <th>Result / Failure Reason</th>
+                <th>Evidence</th>
+              </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      `;
+
+      if (['COMPLETED', 'FAILED', 'PARTIAL'].includes(data.status)) {
+        if (activeBatchPollTimer) {
+          clearInterval(activeBatchPollTimer);
+          activeBatchPollTimer = null;
+        }
+        loadEngineerBatches();
+        loadEngineerInspections();
+        loadEngineerAnalytics();
+      }
+    }
+
+    await fetchAndRender();
+    activeBatchPollTimer = setInterval(fetchAndRender, 1200);
+  }
+
+  async function loadEngineerAnalytics() {
+    const { ok, data } = await Spectra.apiFetch('/api/v1/analytics/engineer/');
+    if (!ok || !data.kpis) return;
+    const k = data.kpis;
+    document.getElementById('eng-kpi-total').textContent = k.personal_inspections;
+    document.getElementById('eng-kpi-completed').textContent = k.completed_inspections;
+    document.getElementById('eng-kpi-failed').textContent = k.failed_inspections;
+    document.getElementById('eng-kpi-rate').textContent = `${k.completion_rate_percent}%`;
+    document.getElementById('eng-kpi-normal').textContent = k.normal_predictions;
+    document.getElementById('eng-kpi-defective').textContent = k.defective_predictions;
+    document.getElementById('eng-kpi-batches').textContent = k.personal_batches;
+    document.getElementById('eng-kpi-reviewed').textContent = k.supervisor_reviewed_count;
+  }
+
+  async function loadEngineerBatches() {
+    const { ok, data } = await Spectra.apiFetch('/api/v1/batches/');
+    if (!ok) return;
+    const tbody = document.getElementById('engineer-batches-tbody');
+    const batches = data.batches || [];
+    if (!batches.length) {
+      tbody.innerHTML = '<tr><td colspan="8" class="text-center text-secondary py-3">No batches submitted yet.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = batches.map(b => {
+      const stClass = b.status === 'COMPLETED' ? 'status-text-completed' : (b.status === 'FAILED' ? 'status-text-failed' : 'status-text-warning');
+      return `
+        <tr>
+          <td class="font-mono fw-semibold">Batch #${b.id}</td>
+          <td class="font-mono">${b.product_code}</td>
+          <td class="font-mono ${stClass}">${b.status}</td>
+          <td class="font-mono">${b.progress_percent}% (${b.completed_items + b.failed_items}/${b.total_items})</td>
+          <td class="font-mono status-text-normal">${b.completed_items}</td>
+          <td class="font-mono status-text-defective">${b.failed_items}</td>
+          <td class="font-mono text-secondary" style="font-size: 0.78rem;">${Spectra.formatTimestamp(b.created_at)}</td>
+          <td>
+            <button type="button" class="btn-spectra-outline py-1 px-2" style="font-size: 0.76rem;" onclick="inspectBatchProgress(${b.id})">
+              View Items
+            </button>
+          </td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  async function loadEngineerInspections() {
+    const search = document.getElementById('eng-filter-search').value.trim();
+    const statusVal = document.getElementById('eng-filter-status').value;
+    const predVal = document.getElementById('eng-filter-pred').value;
+    const params = new URLSearchParams({
+      search,
+      status: statusVal,
+      predicted_class: predVal,
+    });
+
+    const { ok, data } = await Spectra.apiFetch(`/api/v1/inspections/?${params.toString()}`);
+    if (!ok) return;
+    const tbody = document.getElementById('engineer-inspections-tbody');
+    const list = data.inspections || [];
+    if (!list.length) {
+      tbody.innerHTML = '<tr><td colspan="11" class="text-center text-secondary py-4">No matching inspection records found.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = list.map(item => {
+      const pred = item.prediction;
+      const rev = item.supervisor_review;
+      const stClass = item.status === 'COMPLETED' ? 'status-text-completed' : (item.status === 'FAILED' ? 'status-text-failed' : 'status-text-warning');
+      const valClass = item.validation_status === 'PASSED' ? 'status-text-normal' : (item.validation_status === 'FAILED' ? 'status-text-failed' : 'status-text-warning');
+
+      return `
+        <tr>
+          <td class="font-mono">#${item.id}</td>
+          <td class="font-mono text-secondary">${item.batch ? '#' + item.batch : 'Single'}</td>
+          <td>${item.original_filename}</td>
+          <td class="font-mono ${valClass}" title="${item.failure_reason || ''}">${item.validation_status}</td>
+          <td class="font-mono ${stClass}">${item.status}</td>
+          <td>
+            ${pred ? `<span class="${pred.predicted_class === 'Defective' ? 'status-text-defective' : 'status-text-normal'}">${pred.predicted_class}</span>` : `<span class="text-secondary" style="font-size:0.78rem;">${item.failure_reason || '—'}</span>`}
+          </td>
+          <td class="font-mono">${pred ? pred.confidence_percent.toFixed(1) + '%' : '—'}</td>
+          <td class="font-mono">${pred ? pred.defect_probability.toFixed(4) : '—'}</td>
+          <td>
+            ${rev ? `<span class="${rev.review_status === 'CONFIRMED' ? 'status-text-normal' : 'status-text-warning'}">${rev.review_status} (${rev.reviewed_class})</span>` : '<span class="text-secondary">UNREVIEWED</span>'}
+          </td>
+          <td class="font-mono text-secondary" style="font-size: 0.78rem;">${Spectra.formatTimestamp(item.created_at)}</td>
+          <td>
+            <a href="/inspections/${item.id}/passport/" class="btn-spectra-outline py-1 px-2" style="font-size: 0.76rem;">
+              Evidence Passport
+            </a>
+          </td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  function refreshEngineerConsole() {
+    loadEngineerAnalytics();
+    loadEngineerBatches();
+    loadEngineerInspections();
+  }
+
+  document.addEventListener('DOMContentLoaded', async () => {
+    refreshEngineerConsole();
+    const { ok, data } = await Spectra.apiFetch('/api/v1/inspections/?limit=1');
+    if (ok && data.inspections && data.inspections.length) {
+      renderSingleInspectionResult(data.inspections[0]);
+    }
+  });
+</script>
+{% endblock %}

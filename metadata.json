@@ -1,0 +1,6 @@
+{
+  "name": "SPECTRΛ — AI Industrial Disk & Plate Damage Detection Platform",
+  "description": "Industrial AI damage detection and inspection system for disks, plates, and rotors, analyzing cracks, scratches, thermal wear, relevance scores, and evidence passports.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

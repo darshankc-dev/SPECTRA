@@ -1,0 +1,262 @@
+{% extends "base.html" %}
+{% block title %}Authenticate — SPECTRΛ Visual Quality Assurance{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center align-items-stretch g-4 py-3">
+  <!-- Left Column: Industrial Platform Overview & One-Click Role Sessions -->
+  <div class="col-lg-6 d-flex flex-column justify-content-between">
+    <div class="spectra-surface h-100 d-flex flex-column justify-content-between">
+      <div>
+        <div class="meta-inline mb-2">AI Visual Quality Assurance & Evidence Platform</div>
+        <h1 class="h2 fw-bold mb-3">Precision Metal Plate Defect Screening & Supervisor Accountability</h1>
+        <p class="text-secondary mb-4">
+          SPECTRΛ executes the frozen <span class="font-mono text-light">BIT-PLATE-CV-1.0</span> classifier on validated images of <span class="font-mono text-light">P-PLATE01</span> (Demonstration Metal Plate), records cryptographic SHA-256 evidence digests, processes multi-image batches via Celery and Redis, and separates immutable AI predictions from human supervisor reviews.
+        </p>
+
+        <hr class="spectra-divider" />
+
+        <div class="mb-4">
+          <h2 class="h6 fw-semibold mb-2">Role-Separated Access Control</h2>
+          <div class="meta-inline mb-2">
+            <strong class="text-light">Administrator</strong> · Manages supported products, monitors system health, verifies model SHA-256 hashes, and reviews platform analytics.
+          </div>
+          <div class="meta-inline mb-2">
+            <strong class="text-light">Engineer</strong> · Uploads single images or 1–10 image batches, tracks asynchronous item statuses, and inspects personal Evidence Passports.
+          </div>
+          <div class="meta-inline">
+            <strong class="text-light">Supervisor</strong> · Audits all saved inspections via a threshold-aware queue and confirms or corrects predictions without altering original AI outputs.
+          </div>
+        </div>
+      </div>
+
+      <div class="spectra-surface-secondary mt-3">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <span class="fw-semibold" style="font-size: 0.85rem;">Instant Evaluator Role Launch</span>
+          <span class="meta-inline">Pre-seeded PostgreSQL Accounts</span>
+        </div>
+        <p class="meta-inline mb-3">
+          Launch directly into any of the three role-specific dashboards with an authenticated Django session:
+        </p>
+        <div class="d-flex flex-wrap gap-2">
+          <a href="/?demo_role=engineer" class="btn-spectra-primary text-decoration-none">
+            Launch Engineer Console
+          </a>
+          <a href="/?demo_role=supervisor" class="btn-spectra-outline">
+            Launch Supervisor Desk
+          </a>
+          <a href="/?demo_role=admin" class="btn-spectra-outline">
+            Launch Admin Control Room
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right Column: Segmented SIGN IN / REGISTER Interface -->
+  <div class="col-lg-5">
+    <div class="spectra-surface h-100">
+      <div class="d-flex align-items-center justify-content-between mb-4">
+        <div class="spectra-segmented" role="tablist" aria-label="Authentication Mode">
+          <button type="button" id="tab-signin" class="spectra-segment-btn active" role="tab" aria-selected="true" onclick="switchAuthTab('signin')">
+            SIGN IN
+          </button>
+          <button type="button" id="tab-register" class="spectra-segment-btn" role="tab" aria-selected="false" onclick="switchAuthTab('register')">
+            REGISTER
+          </button>
+        </div>
+        <span class="meta-inline font-mono">DJANGO AUTH</span>
+      </div>
+
+      <div id="auth-alert" class="p-3 rounded mb-3 d-none" style="background-color: rgba(239, 68, 68, 0.14); border: 1px solid rgba(239, 68, 68, 0.45); color: #FCA5A5; font-size: 0.85rem;"></div>
+
+      <!-- SIGN IN FORM -->
+      <form id="signin-form" onsubmit="handleSignIn(event)" novalidate>
+        <div class="mb-3">
+          <label for="signin-username" class="spectra-label">Username</label>
+          <input type="text" id="signin-username" name="username" class="spectra-input" placeholder="Enter username (e.g. engineer, supervisor, admin)" required autocomplete="username" />
+        </div>
+
+        <div class="mb-3">
+          <label for="signin-password" class="spectra-label">Password</label>
+          <div class="d-flex gap-2">
+            <input type="password" id="signin-password" name="password" class="spectra-input" placeholder="Enter password" required autocomplete="current-password" />
+            <button type="button" class="btn-spectra-outline px-3" aria-label="Toggle password visibility" onclick="togglePasswordVisibility('signin-password', this)">
+              <i class="bi bi-eye"></i>
+            </button>
+          </div>
+        </div>
+
+        <div class="mb-4">
+          <div class="meta-inline mb-2">Quick-Fill Credentials:</div>
+          <div class="d-flex flex-wrap gap-2">
+            <button type="button" class="btn-spectra-outline py-1 px-2" style="font-size: 0.78rem;" onclick="fillDemoCredentials('engineer', 'SpectraEng2026!')">
+              Fill Engineer (engineer)
+            </button>
+            <button type="button" class="btn-spectra-outline py-1 px-2" style="font-size: 0.78rem;" onclick="fillDemoCredentials('supervisor', 'SpectraSuper2026!')">
+              Fill Supervisor (supervisor)
+            </button>
+            <button type="button" class="btn-spectra-outline py-1 px-2" style="font-size: 0.78rem;" onclick="fillDemoCredentials('admin', 'SpectraAdmin2026!')">
+              Fill Admin (admin)
+            </button>
+          </div>
+        </div>
+
+        <button type="submit" id="signin-submit-btn" class="btn-spectra-primary w-100 py-2">
+          Authenticate
+        </button>
+      </form>
+
+      <!-- REGISTER FORM -->
+      <form id="register-form" class="d-none" onsubmit="handleRegister(event)" novalidate>
+        <div class="p-2 px-3 rounded mb-3 meta-inline" style="background-color: #101827; border: 1px solid #334155;">
+          Public registration provisions <strong style="color: #22DDF2;">ENGINEER</strong> accounts only. Supervisor and Administrator accounts require Administrator provisioning.
+        </div>
+
+        <div class="mb-3">
+          <label for="reg-fullname" class="spectra-label">Full Name</label>
+          <input type="text" id="reg-fullname" name="full_name" class="spectra-input" placeholder="e.g. Priya Sharma" required />
+        </div>
+
+        <div class="mb-3">
+          <label for="reg-username" class="spectra-label">Username</label>
+          <input type="text" id="reg-username" name="username" class="spectra-input" placeholder="Choose a username" required autocomplete="username" />
+        </div>
+
+        <div class="mb-3">
+          <label for="reg-email" class="spectra-label">Email Address</label>
+          <input type="email" id="reg-email" name="email" class="spectra-input" placeholder="name@manufacturing-qa.org" required autocomplete="email" />
+        </div>
+
+        <div class="row g-2 mb-4">
+          <div class="col-sm-6">
+            <label for="reg-password" class="spectra-label">Password</label>
+            <input type="password" id="reg-password" name="password" class="spectra-input" placeholder="Min. 8 characters" required autocomplete="new-password" />
+          </div>
+          <div class="col-sm-6">
+            <label for="reg-confirm" class="spectra-label">Confirm Password</label>
+            <input type="password" id="reg-confirm" name="confirm_password" class="spectra-input" placeholder="Repeat password" required autocomplete="new-password" />
+          </div>
+        </div>
+
+        <button type="submit" id="register-submit-btn" class="btn-spectra-primary w-100 py-2">
+          Create Account
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  function switchAuthTab(mode) {
+    const signInForm = document.getElementById('signin-form');
+    const regForm = document.getElementById('register-form');
+    const tabSignIn = document.getElementById('tab-signin');
+    const tabReg = document.getElementById('tab-register');
+    const alertBox = document.getElementById('auth-alert');
+    alertBox.classList.add('d-none');
+
+    if (mode === 'signin') {
+      signInForm.classList.remove('d-none');
+      regForm.classList.add('d-none');
+      tabSignIn.classList.add('active');
+      tabSignIn.setAttribute('aria-selected', 'true');
+      tabReg.classList.remove('active');
+      tabReg.setAttribute('aria-selected', 'false');
+    } else {
+      signInForm.classList.add('d-none');
+      regForm.classList.remove('d-none');
+      tabSignIn.classList.remove('active');
+      tabSignIn.setAttribute('aria-selected', 'false');
+      tabReg.classList.add('active');
+      tabReg.setAttribute('aria-selected', 'true');
+    }
+  }
+
+  function togglePasswordVisibility(inputId, btn) {
+    const input = document.getElementById(inputId);
+    const icon = btn.querySelector('i');
+    if (input.type === 'password') {
+      input.type = 'text';
+      icon.className = 'bi bi-eye-slash';
+    } else {
+      input.type = 'password';
+      icon.className = 'bi bi-eye';
+    }
+  }
+
+  function fillDemoCredentials(username, password) {
+    switchAuthTab('signin');
+    document.getElementById('signin-username').value = username;
+    document.getElementById('signin-password').value = password;
+  }
+
+  function showAuthError(msg) {
+    const alertBox = document.getElementById('auth-alert');
+    alertBox.textContent = msg;
+    alertBox.classList.remove('d-none');
+  }
+
+  async function handleSignIn(e) {
+    e.preventDefault();
+    const username = document.getElementById('signin-username').value.trim();
+    const password = document.getElementById('signin-password').value;
+    if (!username || !password) {
+      showAuthError('Please enter both username and password.');
+      return;
+    }
+    const btn = document.getElementById('signin-submit-btn');
+    btn.disabled = true;
+    btn.textContent = 'Authenticating...';
+
+    const { ok, data } = await Spectra.apiFetch('/api/v1/auth/login/', {
+      method: 'POST',
+      body: { username, password },
+    });
+
+    if (ok && data.redirect_url) {
+      window.location.href = data.redirect_url;
+    } else {
+      showAuthError(data.error || 'Authentication failed.');
+      btn.disabled = false;
+      btn.textContent = 'Authenticate';
+    }
+  }
+
+  async function handleRegister(e) {
+    e.preventDefault();
+    const full_name = document.getElementById('reg-fullname').value.trim();
+    const username = document.getElementById('reg-username').value.trim();
+    const email = document.getElementById('reg-email').value.trim();
+    const password = document.getElementById('reg-password').value;
+    const confirm_password = document.getElementById('reg-confirm').value;
+
+    if (!username || !email || !password) {
+      showAuthError('Username, email, and password are required.');
+      return;
+    }
+    if (password !== confirm_password) {
+      showAuthError('Passwords do not match.');
+      return;
+    }
+
+    const btn = document.getElementById('register-submit-btn');
+    btn.disabled = true;
+    btn.textContent = 'Creating Engineer Account...';
+
+    const { ok, data } = await Spectra.apiFetch('/api/v1/auth/register/', {
+      method: 'POST',
+      body: { full_name, username, email, password, confirm_password },
+    });
+
+    if (ok && data.redirect_url) {
+      window.location.href = data.redirect_url;
+    } else {
+      showAuthError(data.error || 'Registration failed.');
+      btn.disabled = false;
+      btn.textContent = 'Create Account';
+    }
+  }
+</script>
+{% endblock %}

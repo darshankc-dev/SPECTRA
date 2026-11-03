@@ -1,0 +1,1 @@
+"""SPECTRΛ Django applications package."""

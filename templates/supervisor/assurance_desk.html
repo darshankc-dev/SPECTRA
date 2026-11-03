@@ -1,0 +1,400 @@
+{% extends "base.html" %}
+{% block title %}Supervisor Assurance Desk — SPECTRΛ{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-end gap-3 mb-4">
+  <div>
+    <div class="meta-inline mb-1">01. Human-in-the-Loop Verification &amp; Audit Accountability</div>
+    <h1 class="h3 fw-bold mb-0">Supervisor Assurance Desk</h1>
+  </div>
+  <div class="d-flex flex-wrap gap-2">
+    <a href="/model-evaluation/" class="btn-spectra-outline">60-Sample Evaluation</a>
+    <button type="button" class="btn-spectra-primary" onclick="refreshSupervisorDesk()">
+      <i class="bi bi-arrow-clockwise"></i> Refresh Queue
+    </button>
+  </div>
+</div>
+
+<!-- Supervisor KPI Strip -->
+<section class="spectra-kpi-strip mb-4" aria-label="Supervisor Assurance Metrics">
+  <div class="spectra-kpi-cell">
+    <div class="spectra-kpi-label">Total Inspections</div>
+    <div class="spectra-kpi-value" id="sup-kpi-total">0</div>
+    <div class="spectra-kpi-sub"><span id="sup-kpi-completed" class="font-mono">0</span> completed inspections</div>
+  </div>
+  <div class="spectra-kpi-cell">
+    <div class="spectra-kpi-label">Pending Reviews</div>
+    <div class="spectra-kpi-value status-text-warning" id="sup-kpi-pending">0</div>
+    <div class="spectra-kpi-sub">Awaiting supervisor verification</div>
+  </div>
+  <div class="spectra-kpi-cell">
+    <div class="spectra-kpi-label">Confirmed Predictions</div>
+    <div class="spectra-kpi-value status-text-normal" id="sup-kpi-confirmed">0</div>
+    <div class="spectra-kpi-sub">Supervisor agreed with AI</div>
+  </div>
+  <div class="spectra-kpi-cell">
+    <div class="spectra-kpi-label">Corrected Predictions</div>
+    <div class="spectra-kpi-value status-text-warning" id="sup-kpi-corrected">0</div>
+    <div class="spectra-kpi-sub">Supervisor overrode AI class</div>
+  </div>
+  <div class="spectra-kpi-cell">
+    <div class="spectra-kpi-label">Human-AI Disagreement</div>
+    <div class="spectra-kpi-value status-text-defective" id="sup-kpi-disagreement">0</div>
+    <div class="spectra-kpi-sub">Original AI preserved unchanged</div>
+  </div>
+</section>
+
+<!-- Row 2: Threshold-Aware Review Queue + Active Review Workbench -->
+<div class="row g-4 mb-4">
+  <!-- Left: Threshold-Aware Review Queue -->
+  <div class="col-lg-6">
+    <div class="spectra-surface h-100">
+      <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+        <div>
+          <h2 class="h5 fw-bold mb-1">02. Threshold-Aware Review Queue</h2>
+          <div class="meta-inline">Sorted by <span class="font-mono text-light">abs(defect_probability - 0.5)</span> ascending (prioritization heuristic)</div>
+        </div>
+        <label class="meta-inline d-flex align-items-center gap-2" style="cursor: pointer;">
+          <input type="checkbox" id="queue-include-reviewed" onchange="loadReviewQueue()" />
+          Include Reviewed
+        </label>
+      </div>
+
+      <div class="spectra-table-wrap mt-3">
+        <table class="spectra-table" aria-label="Threshold-Aware Priority Queue">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Filename</th>
+              <th>AI Class</th>
+              <th>Defect Prob.</th>
+              <th>|p − 0.5|</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="supervisor-queue-tbody">
+            <tr><td colspan="6" class="text-center text-secondary py-4">Loading priority review queue...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right: Supervisor Review Workbench (Confirm / Correct without modifying Original AI) -->
+  <div class="col-lg-6">
+    <div class="spectra-surface h-100" id="review-workbench-panel">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+          <h2 class="h5 fw-bold mb-1" id="workbench-title">03. Supervisor Review Workbench</h2>
+          <div class="meta-inline">Original <span class="font-mono text-light">PredictionResult</span> is immutable; reviews are stored in <span class="font-mono text-light">SupervisorReview</span></div>
+        </div>
+        <span id="workbench-passport-btn"></span>
+      </div>
+
+      <div id="workbench-content">
+        <div class="spectra-surface-secondary text-center py-5">
+          <div class="text-secondary">Select any completed inspection from the Queue or History table to inspect the image evidence and confirm or correct the AI prediction.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Row 3: All Saved Inspections with Prediction, Review Status & Disagreement Filters -->
+<div class="spectra-surface">
+  <div class="d-flex flex-wrap justify-content-between align-items-end gap-3 mb-3">
+    <div>
+      <h2 class="h5 fw-bold mb-1">04. Complete Saved Inspection &amp; Review Ledger</h2>
+      <div class="meta-inline">Filter across all engineer submissions, prediction classes, review states, and human-AI disagreements</div>
+    </div>
+
+    <div class="d-flex flex-wrap gap-2 align-items-center">
+      <input type="text" id="sup-filter-search" class="spectra-input py-1 px-2" style="width: 175px; font-size: 0.82rem;" placeholder="Search filename, user, ID..." oninput="loadAllInspectionsForSupervisor()" />
+      <select id="sup-filter-status" class="spectra-select py-1 px-2" style="width: 140px; font-size: 0.82rem;" onchange="loadAllInspectionsForSupervisor()" aria-label="Filter Inspection Status">
+        <option value="ALL">All Statuses</option>
+        <option value="COMPLETED">COMPLETED</option>
+        <option value="FAILED">FAILED</option>
+      </select>
+      <select id="sup-filter-pred" class="spectra-select py-1 px-2" style="width: 145px; font-size: 0.82rem;" onchange="loadAllInspectionsForSupervisor()" aria-label="Filter Predicted Class">
+        <option value="ALL">All AI Classes</option>
+        <option value="Normal">AI: Normal</option>
+        <option value="Defective">AI: Defective</option>
+      </select>
+      <select id="sup-filter-review" class="spectra-select py-1 px-2" style="width: 155px; font-size: 0.82rem;" onchange="loadAllInspectionsForSupervisor()" aria-label="Filter Review Status">
+        <option value="ALL">All Review States</option>
+        <option value="UNREVIEWED">UNREVIEWED</option>
+        <option value="CONFIRMED">CONFIRMED</option>
+        <option value="CORRECTED">CORRECTED</option>
+      </select>
+      <label class="meta-inline d-flex align-items-center gap-1 ms-1" style="cursor: pointer;">
+        <input type="checkbox" id="sup-filter-disagreement" onchange="loadAllInspectionsForSupervisor()" />
+        Disagreements Only
+      </label>
+    </div>
+  </div>
+
+  <div class="spectra-table-wrap">
+    <table class="spectra-table" aria-label="Supervisor Complete Inspection History">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Engineer</th>
+          <th>Filename</th>
+          <th>Status</th>
+          <th>Original AI Prediction (Immutable)</th>
+          <th>Confidence</th>
+          <th>Supervisor Review</th>
+          <th>Reviewer &amp; Comment</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="supervisor-history-tbody">
+        <tr><td colspan="9" class="text-center text-secondary py-4">Loading inspection history...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  let selectedInspection = null;
+
+  async function loadSupervisorAnalytics() {
+    const { ok, data } = await Spectra.apiFetch('/api/v1/analytics/supervisor/');
+    if (!ok || !data.kpis) return;
+    const k = data.kpis;
+    document.getElementById('sup-kpi-total').textContent = k.total_inspections;
+    document.getElementById('sup-kpi-completed').textContent = k.completed_inspections;
+    document.getElementById('sup-kpi-pending').textContent = k.pending_reviews;
+    document.getElementById('sup-kpi-confirmed').textContent = k.confirmed_predictions;
+    document.getElementById('sup-kpi-corrected').textContent = k.corrected_predictions;
+    document.getElementById('sup-kpi-disagreement').textContent = k.human_ai_disagreement_count;
+  }
+
+  async function loadReviewQueue() {
+    const includeReviewed = document.getElementById('queue-include-reviewed').checked;
+    const { ok, data } = await Spectra.apiFetch(`/api/v1/reviews/queue/?include_reviewed=${includeReviewed}`);
+    if (!ok) return;
+    const tbody = document.getElementById('supervisor-queue-tbody');
+    const queue = data.queue || [];
+
+    if (!queue.length) {
+      tbody.innerHTML = '<tr><td colspan="6" class="text-center text-secondary py-4">All completed inspections have been reviewed. Check "Include Reviewed" to re-inspect.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = queue.map(item => {
+      const pred = item.prediction;
+      const dist = item.threshold_distance !== null ? item.threshold_distance.toFixed(4) : '—';
+      return `
+        <tr>
+          <td class="font-mono fw-semibold">#${item.id}</td>
+          <td>${item.original_filename}</td>
+          <td>
+            <span class="${pred.predicted_class === 'Defective' ? 'status-text-defective' : 'status-text-normal'}">
+              ${pred.predicted_class}
+            </span>
+          </td>
+          <td class="font-mono">${pred.defect_probability.toFixed(4)}</td>
+          <td class="font-mono" style="color: #22DDF2;">${dist}</td>
+          <td>
+            <button type="button" class="btn-spectra-outline py-1 px-2" style="font-size: 0.76rem;" onclick="openReviewWorkbench(${item.id})">
+              Review
+            </button>
+          </td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  async function openReviewWorkbench(inspectionId) {
+    const { ok, data } = await Spectra.apiFetch(`/api/v1/inspections/${inspectionId}/passport/`);
+    if (!ok || !data.inspection) return;
+    const ins = data.inspection;
+    selectedInspection = ins;
+
+    document.getElementById('workbench-title').textContent = `03. Review Inspection #${ins.id} (${ins.original_filename})`;
+    document.getElementById('workbench-passport-btn').innerHTML = `
+      <a href="/inspections/${ins.id}/passport/" class="btn-spectra-outline py-1 px-2" style="font-size: 0.78rem;">
+        Full Evidence Passport
+      </a>
+    `;
+
+    const pred = ins.prediction;
+    const rev = ins.supervisor_review;
+    const revisions = data.review_revisions || [];
+
+    if (!pred) {
+      document.getElementById('workbench-content').innerHTML = `
+        <div class="spectra-surface-secondary">
+          <div class="status-text-failed font-mono mb-2">FAILED UPLOAD — NOT ELIGIBLE FOR REVIEW</div>
+          <div class="text-secondary">${ins.failure_reason || 'No prediction exists for this failed record.'}</div>
+        </div>
+      `;
+      return;
+    }
+
+    const originalIsDef = pred.predicted_class === 'Defective';
+    const oppositeClass = originalIsDef ? 'Normal' : 'Defective';
+
+    const revisionRows = revisions.length
+      ? revisions.map(r => `
+          <div class="meta-inline font-mono py-1" style="border-bottom: 1px solid rgba(51,65,85,0.4);">
+            [${Spectra.formatTimestamp(r.created_at)}] ${r.reviewer_username}: ${r.previous_class || 'UNREVIEWED'} &rarr; <strong>${r.new_class}</strong> ${r.comment ? ' — "' + r.comment + '"' : ''}
+          </div>
+        `).join('')
+      : '<div class="meta-inline">No review revisions recorded yet.</div>';
+
+    document.getElementById('review-workbench-panel').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+    document.getElementById('workbench-content').innerHTML = `
+      <div class="row g-3 mb-3">
+        <div class="col-sm-5">
+          <div class="evidence-frame">
+            <img src="${ins.image_url}" alt="${ins.original_filename}" referrerpolicy="no-referrer" />
+          </div>
+        </div>
+        <div class="col-sm-7">
+          <div class="spectra-surface-secondary h-100">
+            <div class="meta-inline mb-1">Immutable Original AI Output (${pred.model_version})</div>
+            <div class="d-flex align-items-baseline justify-content-between mb-2">
+              <span class="h4 fw-bold mb-0 ${originalIsDef ? 'status-text-defective' : 'status-text-normal'}">${pred.predicted_class}</span>
+              <span class="font-mono fw-semibold">${pred.confidence_percent.toFixed(2)}% confidence</span>
+            </div>
+            <div class="meta-inline font-mono mb-2">
+              Defect Prob: ${pred.defect_probability.toFixed(4)} · Threshold: ${pred.decision_threshold} · |p−0.5|: ${pred.threshold_distance.toFixed(4)}
+            </div>
+
+            <hr class="spectra-divider my-2" />
+
+            <div class="meta-inline mb-1">Current Supervisor Review Status</div>
+            ${rev
+              ? `<div class="fw-bold ${rev.review_status === 'CONFIRMED' ? 'status-text-normal' : 'status-text-warning'}">${rev.review_status}: ${rev.reviewed_class} (by ${rev.reviewer_username})</div>
+                 <div class="meta-inline mt-1">${rev.comment || 'No comment provided.'}</div>`
+              : `<div class="status-text-warning fw-semibold">UNREVIEWED — Pending Supervisor Decision</div>`
+            }
+          </div>
+        </div>
+      </div>
+
+      <div class="spectra-surface-secondary mb-3">
+        <label for="supervisor-review-comment" class="spectra-label">Supervisor Review Comment (Optional)</label>
+        <textarea id="supervisor-review-comment" class="spectra-textarea mb-3" rows="2" placeholder="Record inspection observation or rationale for confirmation/correction...">${rev ? (rev.comment || '') : ''}</textarea>
+
+        <div class="d-flex flex-wrap gap-2">
+          <button type="button" class="btn-spectra-success flex-grow-1" onclick="submitReviewDecision(${ins.id}, '${pred.predicted_class}')">
+            <i class="bi bi-check2-circle"></i> Confirm AI Prediction (${pred.predicted_class})
+          </button>
+          <button type="button" class="btn-spectra-danger flex-grow-1" onclick="submitReviewDecision(${ins.id}, '${oppositeClass}')">
+            <i class="bi bi-arrow-left-right"></i> Correct to ${oppositeClass}
+          </button>
+        </div>
+      </div>
+
+      <div>
+        <div class="fw-semibold mb-1" style="font-size: 0.82rem;">Append-Only Review Revision History</div>
+        <div class="spectra-surface-secondary py-2 px-3">${revisionRows}</div>
+      </div>
+    `;
+  }
+
+  async function submitReviewDecision(inspectionId, reviewedClass) {
+    const commentEl = document.getElementById('supervisor-review-comment');
+    const comment = commentEl ? commentEl.value.trim() : '';
+
+    const { ok, status, data } = await Spectra.apiFetch(`/api/v1/reviews/${inspectionId}/`, {
+      method: 'POST',
+      body: { reviewed_class: reviewedClass, comment },
+    });
+
+    if (ok) {
+      Spectra.toast(data.message || 'Supervisor review saved.', 'success');
+      await openReviewWorkbench(inspectionId);
+      refreshSupervisorDesk();
+    } else {
+      Spectra.toast(data.error || `Review failed (HTTP ${status}).`, 'error');
+    }
+  }
+
+  async function loadAllInspectionsForSupervisor() {
+    const search = document.getElementById('sup-filter-search').value.trim();
+    const statusVal = document.getElementById('sup-filter-status').value;
+    const predVal = document.getElementById('sup-filter-pred').value;
+    const revVal = document.getElementById('sup-filter-review').value;
+    const disagree = document.getElementById('sup-filter-disagreement').checked;
+
+    const params = new URLSearchParams({
+      search,
+      status: statusVal,
+      predicted_class: predVal,
+      review_status: revVal,
+      disagreement: disagree ? 'true' : 'false',
+    });
+
+    const { ok, data } = await Spectra.apiFetch(`/api/v1/inspections/?${params.toString()}`);
+    if (!ok) return;
+    const tbody = document.getElementById('supervisor-history-tbody');
+    const list = data.inspections || [];
+
+    if (!list.length) {
+      tbody.innerHTML = '<tr><td colspan="9" class="text-center text-secondary py-4">No inspections match the selected filters.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = list.map(item => {
+      const pred = item.prediction;
+      const rev = item.supervisor_review;
+      const stClass = item.status === 'COMPLETED' ? 'status-text-completed' : (item.status === 'FAILED' ? 'status-text-failed' : 'status-text-warning');
+
+      return `
+        <tr>
+          <td class="font-mono fw-semibold">#${item.id}</td>
+          <td class="font-mono">${item.submitted_by_username}</td>
+          <td>${item.original_filename}</td>
+          <td class="font-mono ${stClass}">${item.status}</td>
+          <td>
+            ${pred
+              ? `<span class="${pred.predicted_class === 'Defective' ? 'status-text-defective' : 'status-text-normal'}">${pred.predicted_class}</span> <span class="meta-inline font-mono">(${pred.model_version})</span>`
+              : `<span class="text-secondary" style="font-size: 0.78rem;">${item.failure_reason || 'No prediction'}</span>`
+            }
+          </td>
+          <td class="font-mono">${pred ? pred.confidence_percent.toFixed(1) + '%' : '—'}</td>
+          <td>
+            ${rev
+              ? `<span class="${rev.review_status === 'CONFIRMED' ? 'status-text-normal' : 'status-text-warning'}">${rev.review_status}: ${rev.reviewed_class}</span>`
+              : '<span class="text-secondary">UNREVIEWED</span>'
+            }
+          </td>
+          <td class="text-secondary" style="font-size: 0.8rem; max-width: 240px;">
+            ${rev ? `<strong>${rev.reviewer_username}:</strong> ${rev.comment || '—'}` : '—'}
+          </td>
+          <td>
+            <div class="d-flex gap-1">
+              ${item.status === 'COMPLETED'
+                ? `<button type="button" class="btn-spectra-primary py-1 px-2" style="font-size: 0.75rem;" onclick="openReviewWorkbench(${item.id})">Review</button>`
+                : ''
+              }
+              <a href="/inspections/${item.id}/passport/" class="btn-spectra-outline py-1 px-2" style="font-size: 0.75rem;">Passport</a>
+            </div>
+          </td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  function refreshSupervisorDesk() {
+    loadSupervisorAnalytics();
+    loadReviewQueue();
+    loadAllInspectionsForSupervisor();
+  }
+
+  document.addEventListener('DOMContentLoaded', async () => {
+    refreshSupervisorDesk();
+    const { ok, data } = await Spectra.apiFetch('/api/v1/inspections/?status=COMPLETED&limit=1');
+    if (ok && data.inspections && data.inspections.length) {
+      openReviewWorkbench(data.inspections[0].id);
+    }
+  });
+</script>
+{% endblock %}

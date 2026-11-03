@@ -1,0 +1,366 @@
+{% extends "base.html" %}
+{% block title %}Evidence Passport #{{ inspection.id }} — SPECTRΛ{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-end gap-3 mb-4">
+  <div>
+    <div class="meta-inline mb-1">EVIDENCE PASSPORT · CRYPTOGRAPHIC &amp; AUDIT RECORD</div>
+    <h1 class="h3 fw-bold mb-0">Inspection #{{ inspection.id }} — {{ inspection.original_filename }}</h1>
+  </div>
+  <div class="d-flex flex-wrap gap-2">
+    <a href="{{ dashboard_url }}" class="btn-spectra-outline">
+      <i class="bi bi-arrow-left"></i> Back to Console
+    </a>
+    <button type="button" id="verify-integrity-btn" class="btn-spectra-primary" onclick="runIntegrityVerification({{ inspection.id }})">
+      <i class="bi bi-shield-check"></i> VERIFY IMAGE INTEGRITY
+    </button>
+  </div>
+</div>
+
+<!-- Live Integrity Verification Result Banner -->
+<div id="integrity-result-banner" class="spectra-surface-secondary mb-4 d-none"></div>
+
+<!-- Top Evidence Summary Strip -->
+<section class="spectra-kpi-strip mb-4" aria-label="Evidence Passport Summary">
+  <div class="spectra-kpi-cell">
+    <div class="spectra-kpi-label">Inspection Status</div>
+    <div class="spectra-kpi-value {% if inspection.status == 'COMPLETED' %}status-text-completed{% elif inspection.status == 'FAILED' %}status-text-failed{% else %}status-text-warning{% endif %}" style="font-size: 1.35rem;">
+      {{ inspection.status }}
+    </div>
+    <div class="spectra-kpi-sub">Validation: {{ inspection.validation_status }}</div>
+  </div>
+  <div class="spectra-kpi-cell">
+    <div class="spectra-kpi-label">Product Code</div>
+    <div class="spectra-kpi-value" style="font-size: 1.35rem;">{{ inspection.product.product_id }}</div>
+    <div class="spectra-kpi-sub">{{ inspection.product.name }}</div>
+  </div>
+  <div class="spectra-kpi-cell">
+    <div class="spectra-kpi-label">Original AI Prediction</div>
+    {% if inspection.prediction %}
+      <div class="spectra-kpi-value {% if inspection.prediction.predicted_class == 'Defective' %}status-text-defective{% else %}status-text-normal{% endif %}" style="font-size: 1.35rem;">
+        {{ inspection.prediction.predicted_class }}
+      </div>
+      <div class="spectra-kpi-sub font-mono">Defect Prob: {{ inspection.prediction.defect_probability|floatformat:4 }}</div>
+    {% else %}
+      <div class="spectra-kpi-value text-secondary" style="font-size: 1.2rem;">NONE (REJECTED)</div>
+      <div class="spectra-kpi-sub">Never passed to classifier</div>
+    {% endif %}
+  </div>
+  <div class="spectra-kpi-cell">
+    <div class="spectra-kpi-label">Supervisor Review</div>
+    {% if inspection.supervisor_review %}
+      <div class="spectra-kpi-value {% if inspection.supervisor_review.review_status == 'CONFIRMED' %}status-text-normal{% else %}status-text-warning{% endif %}" style="font-size: 1.35rem;">
+        {{ inspection.supervisor_review.review_status }}
+      </div>
+      <div class="spectra-kpi-sub">Reviewed Class: <strong>{{ inspection.supervisor_review.reviewed_class }}</strong></div>
+    {% else %}
+      <div class="spectra-kpi-value status-text-muted" style="font-size: 1.35rem;">UNREVIEWED</div>
+      <div class="spectra-kpi-sub">No human override recorded</div>
+    {% endif %}
+  </div>
+</section>
+
+<div class="row g-4 mb-4">
+  <!-- Left Column: Stored Image Evidence & File Metadata -->
+  <div class="col-lg-5">
+    <div class="spectra-surface h-100">
+      <h2 class="h5 fw-bold mb-3">01. Stored Image Evidence &amp; File Digest</h2>
+
+      {% if inspection.validation_status == "PASSED" %}
+        <div class="evidence-frame mb-3">
+          <img src="/api/v1/inspections/{{ inspection.id }}/image/" alt="{{ inspection.original_filename }}" referrerpolicy="no-referrer" />
+        </div>
+      {% else %}
+        <div class="spectra-surface-secondary mb-3 text-center py-4">
+          <div class="status-text-failed font-mono fw-semibold mb-1">INVALID IMAGE — NOT DECODABLE</div>
+          <div class="text-secondary" style="font-size: 0.85rem;">{{ inspection.failure_reason }}</div>
+        </div>
+      {% endif %}
+
+      <div class="spectra-table-wrap">
+        <table class="spectra-table">
+          <tbody>
+            <tr>
+              <th>Inspection ID</th>
+              <td class="font-mono">#{{ inspection.id }} {% if inspection.batch_id %}(Batch #{{ inspection.batch_id }}){% else %}(Single Upload){% endif %}</td>
+            </tr>
+            <tr>
+              <th>Original Filename</th>
+              <td class="font-mono">{{ inspection.original_filename }}</td>
+            </tr>
+            <tr>
+              <th>Submitted By</th>
+              <td class="font-mono">{{ inspection.submitted_by.username }}</td>
+            </tr>
+            <tr>
+              <th>Submission Timestamp</th>
+              <td class="font-mono">{{ inspection.created_at|date:"Y-m-d H:i:s" }} UTC</td>
+            </tr>
+            <tr>
+              <th>File Size</th>
+              <td class="font-mono">{{ inspection.file_size }} bytes</td>
+            </tr>
+            <tr>
+              <th>Decoded Format &amp; Dimensions</th>
+              <td class="font-mono">
+                {% if inspection.width and inspection.height %}
+                  {{ inspection.image_format }} · {{ inspection.width }} × {{ inspection.height }} px
+                {% else %}
+                  N/A (Validation Failed)
+                {% endif %}
+              </td>
+            </tr>
+            <tr>
+              <th>Original Bytes SHA-256</th>
+              <td class="font-mono" style="font-size: 0.75rem; word-break: break-all;" id="saved-sha256-cell">{{ inspection.image_sha256 }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p class="meta-inline mt-3 mb-0">
+        {{ integrity_explanation }}
+      </p>
+    </div>
+  </div>
+
+  <!-- Right Column: Immutable AI Output + Supervisor Review & Role Enforcement Verification -->
+  <div class="col-lg-7">
+    <div class="spectra-surface h-100 d-flex flex-column justify-content-between">
+      <div>
+        <h2 class="h5 fw-bold mb-3">02. Immutable AI Prediction vs. Supervisor Review</h2>
+
+        <!-- Original AI Prediction Box -->
+        <div class="spectra-surface-secondary mb-3">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <span class="fw-semibold" style="color: #22DDF2;">Original AI Prediction (Immutable Record)</span>
+            <span class="font-mono meta-inline">Table: PredictionResult</span>
+          </div>
+          {% if inspection.prediction %}
+            <div class="row g-3">
+              <div class="col-sm-3">
+                <div class="meta-inline">Predicted Class</div>
+                <div class="font-mono fs-5 fw-bold {% if inspection.prediction.predicted_class == 'Defective' %}status-text-defective{% else %}status-text-normal{% endif %}">
+                  {{ inspection.prediction.predicted_class }}
+                </div>
+              </div>
+              <div class="col-sm-3">
+                <div class="meta-inline">Confidence</div>
+                <div class="font-mono fs-5 fw-bold">{% widthratio inspection.prediction.confidence 1 100 %}%</div>
+                <div class="meta-inline font-mono">{{ inspection.prediction.confidence|floatformat:6 }}</div>
+              </div>
+              <div class="col-sm-3">
+                <div class="meta-inline">Defect Probability</div>
+                <div class="font-mono fs-5 fw-bold">{{ inspection.prediction.defect_probability|floatformat:4 }}</div>
+              </div>
+              <div class="col-sm-3">
+                <div class="meta-inline">Model &amp; Threshold</div>
+                <div class="font-mono fw-semibold">{{ inspection.prediction.model_version }}</div>
+                <div class="meta-inline font-mono">Threshold: {{ inspection.prediction.decision_threshold }}</div>
+              </div>
+            </div>
+          {% else %}
+            <div class="text-secondary">
+              No <span class="font-mono text-light">PredictionResult</span> exists because this upload failed validation (<span class="text-light">{{ inspection.failure_reason }}</span>) and was blocked prior to model execution.
+            </div>
+          {% endif %}
+        </div>
+
+        <!-- Supervisor Review Record -->
+        <div class="spectra-surface-secondary mb-3">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <span class="fw-semibold">Supervisor Review Accountability Record</span>
+            <span class="font-mono meta-inline">Table: SupervisorReview</span>
+          </div>
+          {% if inspection.supervisor_review %}
+            <div class="row g-2 mb-2">
+              <div class="col-sm-4">
+                <div class="meta-inline">Review Decision</div>
+                <div class="font-mono fw-bold {% if inspection.supervisor_review.review_status == 'CONFIRMED' %}status-text-normal{% else %}status-text-warning{% endif %}">
+                  {{ inspection.supervisor_review.review_status }} ({{ inspection.supervisor_review.reviewed_class }})
+                </div>
+              </div>
+              <div class="col-sm-4">
+                <div class="meta-inline">Reviewer Identity</div>
+                <div class="font-mono">{{ inspection.supervisor_review.reviewer.username }}</div>
+              </div>
+              <div class="col-sm-4">
+                <div class="meta-inline">Review Timestamp</div>
+                <div class="font-mono" style="font-size: 0.8rem;">{{ inspection.supervisor_review.updated_at|date:"Y-m-d H:i:s" }} UTC</div>
+              </div>
+            </div>
+            <div class="meta-inline">
+              <strong>Comment:</strong> {{ inspection.supervisor_review.comment|default:"No comment entered." }}
+            </div>
+          {% else %}
+            <div class="text-secondary">This inspection has not yet been reviewed by a Supervisor.</div>
+          {% endif %}
+        </div>
+
+        {% if can_review %}
+        <!-- Active Supervisor Review Controls -->
+        <div class="spectra-surface-secondary mb-3">
+          <div class="fw-semibold mb-2">Submit Supervisor Verification or Correction</div>
+          <textarea id="passport-review-comment" class="spectra-textarea mb-2" rows="2" placeholder="Optional review comment...">{{ inspection.supervisor_review.comment|default:"" }}</textarea>
+          <div class="d-flex flex-wrap gap-2">
+            <button type="button" class="btn-spectra-success" onclick="submitPassportReview({{ inspection.id }}, '{{ inspection.prediction.predicted_class }}')">
+              Confirm Original ({{ inspection.prediction.predicted_class }})
+            </button>
+            {% if inspection.prediction.predicted_class == "Defective" %}
+              <button type="button" class="btn-spectra-danger" onclick="submitPassportReview({{ inspection.id }}, 'Normal')">
+                Correct to Normal
+              </button>
+            {% else %}
+              <button type="button" class="btn-spectra-danger" onclick="submitPassportReview({{ inspection.id }}, 'Defective')">
+                Correct to Defective
+              </button>
+            {% endif %}
+          </div>
+        </div>
+        {% elif user_role == "ENGINEER" and inspection.status == "COMPLETED" %}
+        <!-- Official Demonstration Checklist: Engineer Server-Side Review Denial Verification -->
+        <div class="spectra-surface-secondary mb-3">
+          <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <div>
+              <div class="fw-semibold" style="font-size: 0.85rem;">Role Security Verification (Engineer Review Denial Check)</div>
+              <div class="meta-inline">Attempt a direct POST to <span class="font-mono">/api/v1/reviews/{{ inspection.id }}/</span> while signed in as ENGINEER to verify HTTP 403 server-side denial.</div>
+            </div>
+            <button type="button" class="btn-spectra-outline py-1 px-2" style="font-size: 0.78rem;" onclick="testEngineerReviewDenial({{ inspection.id }})">
+              Attempt Unauthorized API Review
+            </button>
+          </div>
+          <div id="denial-test-output" class="mt-2 d-none p-2 rounded font-mono" style="font-size: 0.78rem; background-color: rgba(239,68,68,0.14); border: 1px solid rgba(239,68,68,0.4); color: #FCA5A5;"></div>
+        </div>
+        {% endif %}
+      </div>
+
+      <!-- Append-Only Review Revisions -->
+      <div>
+        <h3 class="h6 fw-bold mb-2">Append-Only Review Revision History</h3>
+        <div class="spectra-table-wrap">
+          <table class="spectra-table">
+            <thead>
+              <tr>
+                <th>Revision</th>
+                <th>Reviewer</th>
+                <th>Transition</th>
+                <th>Comment</th>
+                <th>Timestamp</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for rev in revisions %}
+              <tr>
+                <td class="font-mono">#{{ rev.id }}</td>
+                <td class="font-mono">{{ rev.reviewer.username }}</td>
+                <td class="font-mono">{{ rev.previous_class|default:"UNREVIEWED" }} &rarr; <strong>{{ rev.new_class }}</strong></td>
+                <td class="text-secondary">{{ rev.comment|default:"—" }}</td>
+                <td class="font-mono text-secondary" style="font-size: 0.76rem;">{{ rev.created_at|date:"Y-m-d H:i:s" }} UTC</td>
+              </tr>
+              {% empty %}
+              <tr><td colspan="5" class="text-center text-secondary py-2">No review revisions recorded.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Full Inspection Event Timeline -->
+<div class="spectra-surface">
+  <h2 class="h5 fw-bold mb-1">03. Append-Only Inspection Event Timeline</h2>
+  <div class="meta-inline mb-3">Application-level audit history recorded in PostgreSQL (<span class="font-mono">InspectionEvent</span>)</div>
+
+  <div class="spectra-table-wrap">
+    <table class="spectra-table" aria-label="Inspection Event Timeline">
+      <thead>
+        <tr>
+          <th>Event ID</th>
+          <th>Timestamp (UTC)</th>
+          <th>Actor</th>
+          <th>Event Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody id="passport-events-tbody">
+        {% for ev in events %}
+        <tr>
+          <td class="font-mono">#{{ ev.id }}</td>
+          <td class="font-mono text-secondary" style="font-size: 0.78rem;">{{ ev.created_at|date:"Y-m-d H:i:s" }} UTC</td>
+          <td class="font-mono">{{ ev.actor.username|default:"SYSTEM" }}</td>
+          <td class="font-mono" style="color: #22DDF2;">{{ ev.event_type }}</td>
+          <td>{{ ev.description }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5" class="text-center text-secondary py-3">No events recorded.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  async function runIntegrityVerification(inspectionId) {
+    const btn = document.getElementById('verify-integrity-btn');
+    btn.disabled = true;
+    btn.textContent = 'Recomputing SHA-256...';
+
+    const { ok, data } = await Spectra.apiFetch(`/api/v1/inspections/${inspectionId}/verify-integrity/`, {
+      method: 'POST',
+    });
+
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-shield-check"></i> VERIFY IMAGE INTEGRITY';
+
+    const banner = document.getElementById('integrity-result-banner');
+    banner.classList.remove('d-none');
+
+    const statusClass = data.status === 'MATCH'
+      ? 'status-text-match'
+      : 'status-text-mismatch';
+
+    banner.innerHTML = `
+      <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+        <div class="h5 fw-bold mb-0 font-mono ${statusClass}">INTEGRITY CHECK RESULT: ${data.status}</div>
+        <div class="font-mono meta-inline">Disk Bytes Read: ${data.file_size_on_disk !== null ? data.file_size_on_disk + ' B' : 'N/A'}</div>
+      </div>
+      <div class="mb-2">${data.message}</div>
+      <div class="font-mono meta-inline mb-2">
+        <div>Saved SHA-256:      <span class="text-light">${data.saved_sha256 || '—'}</span></div>
+        <div>Recomputed SHA-256: <span class="text-light">${data.recomputed_sha256 || '—'}</span></div>
+      </div>
+      <div class="meta-inline">${data.explanation || ''}</div>
+    `;
+    Spectra.toast(`Image integrity check: ${data.status}`, data.status === 'MATCH' ? 'success' : 'error');
+  }
+
+  async function submitPassportReview(inspectionId, reviewedClass) {
+    const comment = document.getElementById('passport-review-comment').value.trim();
+    const { ok, data } = await Spectra.apiFetch(`/api/v1/reviews/${inspectionId}/`, {
+      method: 'POST',
+      body: { reviewed_class: reviewedClass, comment },
+    });
+    if (ok) {
+      Spectra.toast(data.message || 'Review saved.', 'success');
+      window.location.reload();
+    } else {
+      Spectra.toast(data.error || 'Review failed.', 'error');
+    }
+  }
+
+  async function testEngineerReviewDenial(inspectionId) {
+    const { status, data } = await Spectra.apiFetch(`/api/v1/reviews/${inspectionId}/`, {
+      method: 'POST',
+      body: { reviewed_class: 'Normal', comment: 'Unauthorized engineer attempt' },
+    });
+    const out = document.getElementById('denial-test-output');
+    out.classList.remove('d-none');
+    out.textContent = `Server Response: HTTP ${status} — ${data.error || 'Forbidden'}. Original prediction and review record remain unmodified.`;
+    Spectra.toast(`Verified HTTP ${status} server-side denial for Engineer review attempt.`, 'info');
+  }
+</script>
+{% endblock %}

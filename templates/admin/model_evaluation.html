@@ -1,0 +1,179 @@
+{% extends "base.html" %}
+{% block title %}Synthetic Development Dataset Evaluation — SPECTRΛ{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-end gap-3 mb-4">
+  <div>
+    <div class="meta-inline mb-1">SYNTHETIC DEVELOPMENT DATASET EVALUATION</div>
+    <h1 class="h3 fw-bold mb-0">60-Sample Model Evaluation &amp; Integrity Report</h1>
+  </div>
+  <div class="d-flex flex-wrap gap-2">
+    <a href="{{ dashboard_url }}" class="btn-spectra-outline">Back to Dashboard</a>
+    <button type="button" class="btn-spectra-primary" onclick="rerunEvaluation()">
+      <i class="bi bi-cpu"></i> Re-Evaluate All 60 Samples
+    </button>
+  </div>
+</div>
+
+<!-- Synthetic Dataset Disclaimer Banner -->
+<div class="spectra-surface-secondary mb-4">
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+    <span class="fw-bold" style="color: #22DDF2;">SYNTHETIC DEVELOPMENT DATASET EVALUATION — {{ eval_data.model_version }}</span>
+    <span class="font-mono meta-inline">Evaluated: {{ eval_data.evaluated_at }}</span>
+  </div>
+  <p class="text-secondary mb-2" style="font-size: 0.9rem;">
+    {{ eval_data.zero_fn_note }}
+  </p>
+  <div class="meta-inline">
+    Product: <strong class="font-mono text-light">{{ eval_data.product_id }}</strong>
+    <span class="meta-sep">·</span>
+    Positive Class: <strong class="font-mono text-light">{{ eval_data.positive_class }}</strong>
+    <span class="meta-sep">·</span>
+    Decision Threshold: <strong class="font-mono text-light">{{ eval_data.decision_threshold }}</strong>
+    <span class="meta-sep">·</span>
+    Missing/Failed Samples: <strong class="font-mono text-light">{{ eval_data.missing_or_failed_predictions }}</strong>
+  </div>
+</div>
+
+<!-- Evaluation Metrics KPI Strip -->
+<section class="spectra-kpi-strip mb-4" aria-label="60-Sample Evaluation Metrics">
+  <div class="spectra-kpi-cell">
+    <div class="spectra-kpi-label">Evaluated Samples</div>
+    <div class="spectra-kpi-value">{{ eval_data.evaluated_samples }} / {{ eval_data.total_samples }}</div>
+    <div class="spectra-kpi-sub">30 Normal · 30 Defective</div>
+  </div>
+  <div class="spectra-kpi-cell">
+    <div class="spectra-kpi-label">Defect Recall (Sensitivity)</div>
+    <div class="spectra-kpi-value status-text-normal">{% widthratio eval_data.defect_recall 1 100 %}%</div>
+    <div class="spectra-kpi-sub font-mono">TP / (TP + FN) = {{ eval_data.true_positive }} / {{ eval_data.true_positive|add:eval_data.false_negative }}</div>
+  </div>
+  <div class="spectra-kpi-cell">
+    <div class="spectra-kpi-label">Accuracy</div>
+    <div class="spectra-kpi-value status-text-normal">{% widthratio eval_data.accuracy 1 100 %}%</div>
+    <div class="spectra-kpi-sub font-mono">({{ eval_data.true_positive }} + {{ eval_data.true_negative }}) / {{ eval_data.evaluated_samples }}</div>
+  </div>
+  <div class="spectra-kpi-cell">
+    <div class="spectra-kpi-label">Precision</div>
+    <div class="spectra-kpi-value status-text-normal">{% widthratio eval_data.precision 1 100 %}%</div>
+    <div class="spectra-kpi-sub font-mono">TP / (TP + FP) = {{ eval_data.true_positive }} / {{ eval_data.true_positive|add:eval_data.false_positive }}</div>
+  </div>
+  <div class="spectra-kpi-cell">
+    <div class="spectra-kpi-label">F1 Score</div>
+    <div class="spectra-kpi-value status-text-normal">{{ eval_data.f1_score|floatformat:4 }}</div>
+    <div class="spectra-kpi-sub">Harmonic Mean of P &amp; R</div>
+  </div>
+</section>
+
+<!-- Confusion Matrix & Model Limitations -->
+<div class="row g-4 mb-4">
+  <div class="col-lg-6">
+    <div class="spectra-surface h-100">
+      <h2 class="h5 fw-bold mb-1">01. 2×2 Confusion Matrix (60 Labeled Samples)</h2>
+      <div class="meta-inline mb-3">Rows represent Actual Labels (Normal, Defective); Columns represent Predicted Labels (Normal, Defective)</div>
+
+      <div class="confusion-grid mb-3">
+        <div class="confusion-cell header">Actual \ Predicted</div>
+        <div class="confusion-cell header">Predicted: Normal</div>
+        <div class="confusion-cell header">Predicted: Defective</div>
+
+        <div class="confusion-cell header">Actual: Normal</div>
+        <div class="confusion-cell">
+          <div class="font-mono fs-3 fw-bold status-text-normal">{{ eval_data.true_negative }}</div>
+          <div class="meta-inline">True Negative (TN)</div>
+        </div>
+        <div class="confusion-cell">
+          <div class="font-mono fs-3 fw-bold">{{ eval_data.false_positive }}</div>
+          <div class="meta-inline">False Positive (FP)</div>
+        </div>
+
+        <div class="confusion-cell header">Actual: Defective</div>
+        <div class="confusion-cell">
+          <div class="font-mono fs-3 fw-bold">{{ eval_data.false_negative }}</div>
+          <div class="meta-inline">False Negative (FN)</div>
+        </div>
+        <div class="confusion-cell">
+          <div class="font-mono fs-3 fw-bold status-text-normal">{{ eval_data.true_positive }}</div>
+          <div class="meta-inline">True Positive (TP)</div>
+        </div>
+      </div>
+
+      <div class="meta-inline">
+        Computed strictly from unmodified <span class="font-mono text-light">Model/inference.py</span> outputs prior to any human supervisor review.
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-6">
+    <div class="spectra-surface h-100">
+      <h2 class="h5 fw-bold mb-1">02. Documented Classifier Scope &amp; Limitations</h2>
+      <div class="meta-inline mb-3">Mandatory disclosures per Round 2 Model and Data Guide</div>
+
+      <div class="d-flex flex-column gap-2">
+        {% for lim in eval_data.limitations %}
+        <div class="spectra-surface-secondary py-2 px-3" style="font-size: 0.87rem;">
+          {{ forloop.counter }}. {{ lim }}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- All 60 Sample Predictions Table -->
+<div class="spectra-surface">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+      <h2 class="h5 fw-bold mb-1">03. Individual Sample Predictions (R2-001 to R2-060)</h2>
+      <div class="meta-inline">Live outputs from <span class="font-mono text-light">Model/inference.py</span> compared against <span class="font-mono text-light">Samples/labels.csv</span></div>
+    </div>
+  </div>
+
+  <div class="spectra-table-wrap">
+    <table class="spectra-table" aria-label="60 Sample Evaluation Results">
+      <thead>
+        <tr>
+          <th>Sample ID</th>
+          <th>Relative Path</th>
+          <th>Actual Label</th>
+          <th>Predicted Class</th>
+          <th>Confidence</th>
+          <th>Defect Probability</th>
+          <th>Outcome</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in eval_data.samples %}
+        <tr>
+          <td class="font-mono fw-semibold">{{ s.image_id }}</td>
+          <td class="font-mono text-secondary">{{ s.relative_path }}</td>
+          <td class="{% if s.actual_label == 'Defective' %}status-text-defective{% else %}status-text-normal{% endif %}">
+            {{ s.actual_label }}
+          </td>
+          <td class="{% if s.predicted_class == 'Defective' %}status-text-defective{% else %}status-text-normal{% endif %}">
+            {{ s.predicted_class }}
+          </td>
+          <td class="font-mono">{{ s.confidence|floatformat:4 }}</td>
+          <td class="font-mono">{{ s.defect_probability|floatformat:4 }}</td>
+          <td class="font-mono status-text-normal">{{ s.outcome }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  async function rerunEvaluation() {
+    Spectra.toast('Running inference across all 60 samples...', 'info');
+    const { ok } = await Spectra.apiFetch('/api/v1/model/evaluation/?refresh=true');
+    if (ok) {
+      Spectra.toast('60-sample evaluation refreshed.', 'success');
+      window.location.reload();
+    } else {
+      Spectra.toast('Failed to refresh evaluation.', 'error');
+    }
+  }
+</script>
+{% endblock %}
