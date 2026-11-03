@@ -1,6 +1,8 @@
 # SPECTRΛ — AI Visual Quality Assurance & Evidence Platform
 
-**SPECTRΛ** is a full-stack visual quality inspection and evidence management platform built with **Python 3, Django 5, Django REST Framework, PostgreSQL (`spectra_db`), Celery, Redis, Pillow, NumPy, Bootstrap 5, and Vanilla JavaScript** for the Round 2 Hackathon Challenge.
+🌐 **Live Deployment**: [https://spectr-ai-visual-quality-assurance-evidence-platf.ai.studio](https://spectr-ai-visual-quality-assurance-evidence-platf.ai.studio)
+
+**SPECTRΛ** is a full-stack visual quality inspection and evidence management platform built with AI Optical Damage Detection, SOP Retrieval-Augmented Generation (RAG), and SPECTRΛ EvidenceTrace™ PDF Traceability.
 
 ---
 
